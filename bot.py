@@ -787,7 +787,7 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         job = cursor.fetchone()
         conn.close()
         
-        if vps_row and vps_row['ssh_command'] and vps_row['ssh_command'] != 'None':
+        if vps_row and vps_row['ssh_command'] and vps_row['ssh_command'] not in ['None', 'Pending...']:
             ssh_line = vps_row['ssh_command']
             break
             
