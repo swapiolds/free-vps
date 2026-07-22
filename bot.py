@@ -13,8 +13,10 @@ from dotenv import load_dotenv
 from datetime import datetime, timezone
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
+
+ADMIN_SET_LIMIT, ADMIN_SET_RAM, ADMIN_SET_CPU, ADMIN_SET_DISK, ADMIN_SET_BANNER, ADMIN_ADD_FJ = range(6)
 
 # Load environment variables
 load_dotenv()
@@ -96,6 +98,38 @@ def init_db():
     if 'suspended' not in columns:
         cursor.execute("ALTER TABLE vps ADD COLUMN suspended INTEGER DEFAULT 0")
     
+    cursor.execute("PRAGMA table_info(users)")
+    user_columns = [col[1] for col in cursor.fetchall()]
+    if 'referred_by' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
+    
+    # Initialize default settings if they don't exist
+    default_settings = {
+        'TOTAL_SERVER_LIMIT': str(TOTAL_SERVER_LIMIT),
+        'DEFAULT_RAM': DEFAULT_RAM,
+        'DEFAULT_CPU': DEFAULT_CPU,
+        'DEFAULT_DISK': DEFAULT_DISK,
+        'BANNER_FILE_ID': ''
+    }
+    for k, v in default_settings.items():
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS force_join (
+            chat_id INTEGER PRIMARY KEY,
+            title TEXT,
+            link TEXT,
+            chat_type TEXT
+        )
+    ''')
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS bans (
             user_id INTEGER PRIMARY KEY
@@ -111,10 +145,58 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def add_user(user_id, username):
+def add_user(user_id, username, referred_by=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)', (user_id, username))
+    # If user doesn't exist, insert them. If they exist, IGNORE handles it.
+    cursor.execute('INSERT OR IGNORE INTO users (user_id, username, referred_by) VALUES (?, ?, ?)', (user_id, username, referred_by))
+    conn.commit()
+    conn.close()
+
+def get_invite_count(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM users WHERE referred_by = ?', (user_id,))
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_setting(key, default=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return row[0]
+    return default
+
+def set_setting(key, value):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
+    conn.commit()
+    conn.close()
+
+def get_force_join_chats():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT chat_id, title, link, chat_type FROM force_join")
+    chats = cursor.fetchall()
+    conn.close()
+    return chats
+
+def add_force_join(chat_id, title, link, chat_type):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO force_join (chat_id, title, link, chat_type) VALUES (?, ?, ?, ?)", (chat_id, title, link, chat_type))
+    conn.commit()
+    conn.close()
+
+def remove_force_join(chat_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM force_join WHERE chat_id = ?", (chat_id,))
     conn.commit()
     conn.close()
 
@@ -361,23 +443,120 @@ def get_main_menu_keyboard():
         [InlineKeyboardButton("❓ Help", callback_data="help")]
     ])
 
+async def check_force_join(user_id, context: ContextTypes.DEFAULT_TYPE):
+    if is_admin(user_id):
+        return True
+
+    chats = get_force_join_chats()
+    if not chats:
+        return True
+
+    not_joined = []
+    for chat_id, title, link, chat_type in chats:
+        try:
+            member = await context.bot.get_chat_member(chat_id, user_id)
+            if member.status in ["left", "kicked"]:
+                not_joined.append((title, link, chat_type))
+        except Exception as e:
+            logger.error(f"Error checking chat {chat_id}: {e}")
+            continue
+
+    if not_joined:
+        buttons = []
+        for title, link, chat_type in not_joined:
+            icon = "📢" if chat_type == "channel" else "💬"
+            label = "𝐉𝐨𝐢𝐧 𝐂𝐡𝐚𝐧𝐧𝐞𝐥" if chat_type == "channel" else "𝐉𝐨𝐢𝐧 𝐆𝐫𝐨𝐮𝐩"
+            buttons.append([InlineKeyboardButton(text=f"{label} {icon}", url=link)])
+        
+        buttons.append([InlineKeyboardButton(text="𝐉𝐨𝐢𝐧𝐞𝐝 ✅", callback_data="main_menu")])
+        markup = InlineKeyboardMarkup(buttons)
+        
+        banner = get_setting('BANNER_FILE_ID', '')
+        caption = "⚠️ <b>Attention!</b>\n━━━━━━━━━━━━━━━━━━━━\nYou must join our official channels and groups to use this bot."
+        
+        return (False, markup, banner, caption)
+    return True
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = "👋 <b>Welcome to UnixNodes VPS Bot! (PRoot Edition)</b>\n\nUse the buttons below to deploy and manage your VPS instances."
+    user_id = update.effective_user.id
+    username = update.effective_user.username or str(user_id)
+    
+    # Check Force Join first
+    fj_check = await check_force_join(user_id, context)
+    if fj_check is not True:
+        _, markup, banner, caption = fj_check
+        if banner:
+            try:
+                if update.message:
+                    await update.message.reply_photo(photo=banner, caption=caption, parse_mode=ParseMode.HTML, reply_markup=markup)
+                elif update.callback_query:
+                    await update.callback_query.message.reply_photo(photo=banner, caption=caption, parse_mode=ParseMode.HTML, reply_markup=markup)
+                return
+            except Exception:
+                pass
+        
+        if update.message:
+            await update.message.reply_text(caption, parse_mode=ParseMode.HTML, reply_markup=markup)
+        elif update.callback_query:
+            await update.callback_query.message.edit_text(caption, parse_mode=ParseMode.HTML, reply_markup=markup)
+        return
+
+    # Handle Referral System
+    if update.message and context.args:
+        try:
+            referred_by = int(context.args[0])
+            if referred_by != user_id:
+                # add_user will ignore if user already exists, so referred_by is only set on first join
+                add_user(user_id, username, referred_by)
+            else:
+                add_user(user_id, username)
+        except ValueError:
+            add_user(user_id, username)
+    else:
+        add_user(user_id, username)
+
+    invites = get_invite_count(user_id)
+    bot_username = context.bot.username
+    invite_link = f"https://t.me/{bot_username}?start={user_id}"
+
+    msg = (
+        "👋 <b>Welcome to UnixNodes VPS Bot! (PRoot Edition)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Deploy and manage your free VPS instances here.\n\n"
+        f"👥 <b>Your Invites:</b> <code>{invites} / 20</code>\n"
+        f"🔗 <b>Your Invite Link:</b>\n<code>{invite_link}</code>\n\n"
+        "<i>You need at least 20 invites to deploy a VPS.</i>"
+    )
+    
     if update.message:
         await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
     elif update.callback_query:
         await update.callback_query.message.edit_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
 
 async def handle_create_vps(query, context, os_type, user_id, username):
-    add_user(user_id, username)
+    # Enforce force join even on button clicks
+    fj_check = await check_force_join(user_id, context)
+    if fj_check is not True:
+        await cmd_start(query, context) # Route back to start to show force join
+        return
+
     if is_banned(user_id):
         await query.message.edit_text("❌ You are banned from creating VPS instances.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
         return
-    if count_user_vps(user_id) >= SERVER_LIMIT:
-        await query.message.edit_text(f"❌ Limit of {SERVER_LIMIT} VPS instances reached.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
+        
+    invites = get_invite_count(user_id)
+    if invites < 20 and not is_admin(user_id):
+        await query.message.edit_text(f"❌ You need at least 20 invites to deploy a VPS.\n\n👥 <b>Current Invites:</b> {invites}/20", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
         return
-    if get_total_instances() >= TOTAL_SERVER_LIMIT:
-        await query.message.edit_text("❌ Global server limit reached.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
+
+    # Strictly 1 VPS per user
+    if count_user_vps(user_id) >= 1:
+        await query.message.edit_text(f"❌ You have reached the maximum limit of 1 VPS instance per user.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
+        return
+        
+    total_limit = int(get_setting('TOTAL_SERVER_LIMIT', TOTAL_SERVER_LIMIT))
+    if get_total_instances() >= total_limit:
+        await query.message.edit_text("❌ Global server limit reached. Please try again later.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
         return
 
     msg = await query.message.edit_text("⏳ Creating your VPS instance... This takes about 30-60 seconds (Extracting RootFS and Installing Packages).")
@@ -395,8 +574,11 @@ async def handle_create_vps(query, context, os_type, user_id, username):
     keyboard = [[InlineKeyboardButton("🖥 Go to My VPS", callback_data="list_vps")]]
     
     if ssh_line:
-        add_vps(user_id, vps_id, container_name, "ubuntu", hostname, ssh_line)
-        text = f"✅ <b>VPS Instance Created (PRoot)</b>\nOS: Ubuntu 22.04\n<code>{ssh_line}</code>"
+        ram = get_setting('DEFAULT_RAM', DEFAULT_RAM)
+        cpu = get_setting('DEFAULT_CPU', DEFAULT_CPU)
+        disk = get_setting('DEFAULT_DISK', DEFAULT_DISK)
+        add_vps(user_id, vps_id, container_name, "ubuntu", hostname, ssh_line, ram=ram, cpu=cpu, disk=disk)
+        text = f"✅ <b>VPS Instance Created (PRoot)</b>\nOS: Ubuntu 22.04\nRAM: {ram} | CPU: {cpu} | Disk: {disk}\n<code>{ssh_line}</code>"
         try:
             await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
             await msg.edit_text("✅ VPS created! Check your DMs for SSH details.", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -414,6 +596,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     username = query.from_user.username or str(user_id)
     
+    # Check force join for button clicks (unless it's checking join)
+    if data != "main_menu":
+        fj_check = await check_force_join(user_id, context)
+        if fj_check is not True:
+            await cmd_start(update, context)
+            return
+
     if data == "main_menu":
         await cmd_start(update, context)
         
@@ -511,6 +700,140 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.edit_text("✅ VPS Removed Successfully.", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
+# ----------------- Admin Panel -----------------
+
+def get_admin_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 Set Global Limit", callback_data="admin_set_limit")],
+        [InlineKeyboardButton("💻 Set Default RAM", callback_data="admin_set_ram"),
+         InlineKeyboardButton("💻 Set Default CPU", callback_data="admin_set_cpu")],
+        [InlineKeyboardButton("💾 Set Default Disk", callback_data="admin_set_disk")],
+        [InlineKeyboardButton("➕ Add Force Join", callback_data="admin_add_fj"),
+         InlineKeyboardButton("📁 Manage FJ", callback_data="admin_manage_fj")],
+        [InlineKeyboardButton("🖼️ Set Banner Image", callback_data="admin_set_banner")],
+        [InlineKeyboardButton("🔙 Exit Admin", callback_data="admin_exit")]
+    ])
+
+async def cmd_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+    await update.message.reply_text("⚙️ **Admin Control Panel**\n\nControl everything from here.", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_kb())
+    return ConversationHandler.END
+
+async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not is_admin(query.from_user.id):
+        await query.answer("Access Denied", show_alert=True)
+        return ConversationHandler.END
+        
+    await query.answer()
+    data = query.data
+    
+    if data == "admin_exit":
+        await query.message.edit_text("✅ Exited Admin Panel.")
+        return ConversationHandler.END
+        
+    elif data == "admin_set_limit":
+        await query.message.edit_text("Send the new Total Server Limit (Number):")
+        return ADMIN_SET_LIMIT
+        
+    elif data == "admin_set_ram":
+        await query.message.edit_text("Send the new Default RAM (e.g., 2g, 4g):")
+        return ADMIN_SET_RAM
+        
+    elif data == "admin_set_cpu":
+        await query.message.edit_text("Send the new Default CPU (e.g., 1, 2):")
+        return ADMIN_SET_CPU
+        
+    elif data == "admin_set_disk":
+        await query.message.edit_text("Send the new Default Disk (e.g., 10G, 20G):")
+        return ADMIN_SET_DISK
+        
+    elif data == "admin_set_banner":
+        await query.message.edit_text("Please send the photo you want to set as the bot's banner.")
+        return ADMIN_SET_BANNER
+        
+    elif data == "admin_add_fj":
+        await query.message.edit_text("Please forward a message from the channel or group to add it to Force Join.\nEnsure the bot is an admin there.")
+        return ADMIN_ADD_FJ
+        
+    elif data == "admin_manage_fj":
+        chats = get_force_join_chats()
+        if not chats:
+            await query.message.edit_text("No Force Join channels added.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="admin_back")]]))
+            return ConversationHandler.END
+        text = "📁 <b>Currently Required Chats:</b>\n\n"
+        buttons = []
+        for chat_id, title, url, chat_type in chats:
+            text += f"• <b>{title}</b> (<code>{chat_id}</code>)\n"
+            buttons.append([InlineKeyboardButton(f"❌ Remove {title}", callback_data=f"remove_fj_{chat_id}")])
+        buttons.append([InlineKeyboardButton("🔙 Back", callback_data="admin_back")])
+        await query.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
+        return ConversationHandler.END
+        
+    elif data == "admin_back":
+        await query.message.edit_text("⚙️ **Admin Control Panel**\n\nControl everything from here.", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_kb())
+        return ConversationHandler.END
+
+    elif data.startswith("remove_fj_"):
+        chat_id = int(data.split("_")[2])
+        remove_force_join(chat_id)
+        await query.message.edit_text(f"✅ Removed chat `{chat_id}`.", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="admin_manage_fj")]]))
+        return ConversationHandler.END
+
+    return ConversationHandler.END
+
+async def admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE, state: int, key: str, success_msg: str):
+    text = update.message.text
+    set_setting(key, text)
+    await update.message.reply_text(f"✅ {success_msg} {text}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_back")]]))
+    return ConversationHandler.END
+
+async def set_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return await admin_input(update, context, ADMIN_SET_LIMIT, 'TOTAL_SERVER_LIMIT', "Total Server Limit updated to")
+async def set_ram(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return await admin_input(update, context, ADMIN_SET_RAM, 'DEFAULT_RAM', "Default RAM updated to")
+async def set_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return await admin_input(update, context, ADMIN_SET_CPU, 'DEFAULT_CPU', "Default CPU updated to")
+async def set_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return await admin_input(update, context, ADMIN_SET_DISK, 'DEFAULT_DISK', "Default Disk updated to")
+
+async def set_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    file_id = update.message.photo[-1].file_id
+    set_setting('BANNER_FILE_ID', file_id)
+    await update.message.reply_text("✅ Banner Updated Successfully!", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_back")]]))
+    return ConversationHandler.END
+
+async def add_fj_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.forward_origin:
+        await update.message.reply_text("❌ Error: Please forward a message from the actual channel/group.", reply_markup=get_admin_kb())
+        return ConversationHandler.END
+        
+    try:
+        if hasattr(update.message.forward_origin, 'chat'):
+            chat = update.message.forward_origin.chat
+            chat_id = chat.id
+            title = chat.title
+            chat_type = chat.type
+            
+            chat_full = await context.bot.get_chat(chat_id)
+            invite_link = chat_full.invite_link
+            if not invite_link:
+                invite_link = f"https://t.me/{chat.username}" if chat.username else None
+                
+            if not invite_link:
+                await update.message.reply_text("❌ Error: Bot cannot find an invite link. Ensure bot is an admin with invite permissions.", reply_markup=get_admin_kb())
+                return ConversationHandler.END
+                
+            add_force_join(chat_id, title, invite_link, chat_type)
+            await update.message.reply_text(f"✅ <b>Successfully Added!</b>\nTitle: <code>{title}</code>\nType: <code>{chat_type}</code>\nLink: {invite_link}", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_back")]]))
+        else:
+            await update.message.reply_text("❌ Could not get chat info from forwarded message.", reply_markup=get_admin_kb())
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}", reply_markup=get_admin_kb())
+        
+    return ConversationHandler.END
+
 # ----------------- Background Tasks -----------------
 
 async def sync_vps_statuses(context: ContextTypes.DEFAULT_TYPE):
@@ -540,6 +863,21 @@ def main():
 
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
+    
+    admin_conv = ConversationHandler(
+        entry_points=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
+        states={
+            ADMIN_SET_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_limit)],
+            ADMIN_SET_RAM: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_ram)],
+            ADMIN_SET_CPU: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_cpu)],
+            ADMIN_SET_DISK: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_disk)],
+            ADMIN_SET_BANNER: [MessageHandler(filters.PHOTO, set_banner)],
+            ADMIN_ADD_FJ: [MessageHandler(filters.FORWARDED, add_fj_chat)]
+        },
+        fallbacks=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
+        allow_reentry=True
+    )
+    application.add_handler(admin_conv)
     application.add_handler(CallbackQueryHandler(button_handler))
     
     job_queue = application.job_queue
