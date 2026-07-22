@@ -698,11 +698,7 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
             f"<code>{ssh_line}</code>\n\n"
             "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
         )
-        try:
-            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
-            await msg.edit_text("✅ <b>ᴠᴘꜱ ᴄʀᴇᴀᴛᴇᴅ!</b> ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴅᴍꜱ ꜰᴏʀ ꜱꜱʜ ᴅᴇᴛᴀɪʟꜱ.", parse_mode=ParseMode.HTML)
-        except Exception:
-            await msg.edit_text(f"✅ <b>ᴠᴘꜱ ᴄʀᴇᴀᴛᴇᴅ!</b> ʜᴇʀᴇ ᴀʀᴇ ᴛʜᴇ ᴅᴇᴛᴀɪʟꜱ:\n\n{text}", parse_mode=ParseMode.HTML)
+        await msg.edit_text(text, parse_mode=ParseMode.HTML)
     else:
         await msg.edit_text("❌ <b>ᴄʀᴇᴀᴛɪᴏɴ ꜰᴀɪʟᴇᴅ:</b> ᴜɴᴀʙʟᴇ ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ.", parse_mode=ParseMode.HTML)
         await async_proot_stop(vps_id)
