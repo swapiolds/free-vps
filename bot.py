@@ -492,7 +492,8 @@ def get_main_menu_keyboard():
     return ReplyKeyboardMarkup([
         [KeyboardButton("🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦"), KeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦")],
         [KeyboardButton("👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲"), KeyboardButton("🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱")],
-        [KeyboardButton("🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀"), KeyboardButton("❓ 𝗛𝗲𝗹𝗽")]
+        [KeyboardButton("🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀"), KeyboardButton("🛍️ 𝗕𝘂𝘆 𝗩𝗣𝗦")],
+        [KeyboardButton("❓ 𝗛𝗲𝗹𝗽")]
     ], resize_keyboard=True)
 
 async def check_force_join(user_id, context: ContextTypes.DEFAULT_TYPE):
@@ -768,10 +769,25 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
             
         await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
+    elif text == "🛍️ 𝗕𝘂𝘆 𝗩𝗣𝗦":
+        buy_text = (
+            "🛍️ <b>Buy Premium VPS</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "Want to bypass the invite limit and get a high-performance VPS instantly?\n\n"
+            "🌐 <b>Visit our website:</b> <a href='https://swapihost.in'>swapihost.in</a>\n"
+            "💬 <b>Contact Admin:</b> @swapibhai\n\n"
+            "<i>Get 24/7 uptime, dedicated resources, and premium support!</i>"
+        )
+        await update.message.reply_text(buy_text, parse_mode=ParseMode.HTML)
+        
     elif text == "❓ 𝗛𝗲𝗹𝗽":
         help_text = (
-            "🤖 <b>VPS Bot Help:</b>\n\n"
-            "Deploy VPS instances up to your limits. These are PRoot environments running within a container."
+            "🤖 <b>VPS Bot Support:</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "Having trouble with your VPS or need assistance?\n\n"
+            "💬 <b>Direct Support:</b> @swapibhai\n"
+            "🌐 <b>Website:</b> <a href='https://swapihost.in'>swapihost.in</a>\n\n"
+            "<i>We are here to help!</i>"
         )
         await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
 
@@ -1083,7 +1099,7 @@ def main():
 
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
-    application.add_handler(MessageHandler(filters.Regex("^(🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦|🖥 𝗠𝘆 𝗩𝗣𝗦|❓ 𝗛𝗲𝗹𝗽|👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲|🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱|🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀)$"), handle_keyboard_buttons))
+    application.add_handler(MessageHandler(filters.Regex("^(🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦|🖥 𝗠𝘆 𝗩𝗣𝗦|❓ 𝗛𝗲𝗹𝗽|👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲|🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱|🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀|🛍️ 𝗕𝘂𝘆 𝗩𝗣𝗦)$"), handle_keyboard_buttons))
     
     admin_conv = ConversationHandler(
         entry_points=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
