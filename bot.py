@@ -439,7 +439,7 @@ async def capture_ssh_session_line(process):
 def get_main_menu_keyboard():
     return ReplyKeyboardMarkup([
         [KeyboardButton("🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦")],
-        [KeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦 𝗜𝗻𝘀𝘁𝗮𝗻𝗰𝗲𝘀")],
+        [KeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦")],
         [KeyboardButton("❓ 𝗛𝗲𝗹𝗽")]
     ], resize_keyboard=True)
 
@@ -639,7 +639,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
 
     if text == "🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦":
         await handle_create_vps(update, context, "ubuntu", user_id, username)
-    elif text == "🖥 𝗠𝘆 𝗩𝗣𝗦 𝗜𝗻𝘀𝘁𝗮𝗻𝗰𝗲𝘀":
+    elif text == "🖥 𝗠𝘆 𝗩𝗣𝗦":
         vps_list = get_user_vps(user_id)
         if not vps_list:
             await update.message.reply_text("❌ You have no VPS instances.")
@@ -716,7 +716,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [InlineKeyboardButton("▶️ Start", callback_data=f"action_start_{vps_id}"),
              InlineKeyboardButton("⏹ Stop", callback_data=f"action_stop_{vps_id}")],
-            [InlineKeyboardButton("🔄 Restart", callback_data=f"action_restart_{vps_id}")],
+            [InlineKeyboardButton("🔄 Restart", callback_data=f"action_restart_{vps_id}"),
+             InlineKeyboardButton("🔑 Gen SSH", callback_data=f"action_genssh_{vps_id}")],
             [InlineKeyboardButton("❌ Delete", callback_data=f"action_delete_{vps_id}")],
             [InlineKeyboardButton("🔙 Back to List", callback_data="list_vps")]
         ]
@@ -767,6 +768,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             delete_vps(vps_id)
             keyboard = [[InlineKeyboardButton("🔙 Back to List", callback_data="list_vps")]]
             await query.message.edit_text("✅ VPS Removed Successfully.", reply_markup=InlineKeyboardMarkup(keyboard))
+            
+        elif action == "genssh":
+            ssh_line = vps['ssh_line']
+            status = check_proot_status(vps_id)
+            if not ssh_line or status != "running":
+                await query.message.edit_text("❌ VPS is not running or no SSH session active. Please Start or Restart it.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"manage_{vps_id}")]]))
+                return
+            await query.message.edit_text(f"🔑 <b>Your SSH Command:</b>\n\n<code>{ssh_line}</code>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"manage_{vps_id}")]]))
 
 
 # ----------------- Admin Panel -----------------
@@ -932,7 +941,7 @@ def main():
 
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
-    application.add_handler(MessageHandler(filters.Regex("^(🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦|🖥 𝗠𝘆 𝗩𝗣𝗦 𝗜𝗻𝘀𝘁𝗮𝗻𝗰𝗲𝘀|❓ 𝗛𝗲𝗹𝗽)$"), handle_keyboard_buttons))
+    application.add_handler(MessageHandler(filters.Regex("^(🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦|🖥 𝗠𝘆 𝗩𝗣𝗦|❓ 𝗛𝗲𝗹𝗽)$"), handle_keyboard_buttons))
     
     admin_conv = ConversationHandler(
         entry_points=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
