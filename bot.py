@@ -1118,7 +1118,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "admin_manage_nodes":
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT node_id, name, status FROM nodes ORDER BY node_id DESC LIMIT 20")
+        cursor.execute("SELECT node_id, name, status FROM nodes WHERE last_ping >= datetime('now', '-2 minutes') ORDER BY node_id DESC LIMIT 20")
         nodes = cursor.fetchall()
         conn.close()
         
@@ -1131,7 +1131,12 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             emoji = "🟢" if n['status'] == "active" else "🔴"
             buttons.append([InlineKeyboardButton(f"{emoji} {n['name']} (ID:{n['node_id']})", callback_data=f"admin_node_{n['node_id']}")])
         buttons.append([InlineKeyboardButton("🔙 Back", callback_data="admin_back")])
-        await query.message.edit_text("🖥 **Worker Nodes Management**\nSelect a node to view stats and manage limits:", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(buttons))
+        text = (
+            "🖥 <b>Worker Nodes Management</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            "<i>Select an active node to view stats, manage limits, or run a test VPS:</i>"
+        )
+        await query.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
         return ConversationHandler.END
         
     elif data.startswith("admin_node_"):
