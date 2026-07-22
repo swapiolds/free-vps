@@ -579,8 +579,6 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• ɪɴꜱᴛᴀɴᴛ ᴅᴇʟɪᴠᴇʀʏ\n"
         "• ʀᴇꜰᴇʀʀᴀʟ ʀᴇᴡᴀʀᴅꜱ\n"
         "• 24/7 ꜱᴜᴘᴘᴏʀᴛ\n\n"
-        f"👥 𝗬𝗼𝘂𝗿 𝗜𝗻𝘃𝗶𝘁𝗲𝘀: <code>{invites} / 20</code>\n"
-        f"🔗 𝗬𝗼𝘂𝗿 𝗜𝗻𝘃𝗶𝘁𝗲 𝗟𝗶𝗻𝗸:\n<code>{invite_link}</code>\n\n"
         "👇 ᴜꜱᴇ ᴛʜᴇ ʙᴜᴛᴛᴏɴꜱ ʙᴇʟᴏᴡ ᴛᴏ ɴᴀᴠɪɢᴀᴛᴇ."
     )
     
