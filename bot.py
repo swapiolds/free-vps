@@ -16,7 +16,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKe
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
-ADMIN_SET_LIMIT, ADMIN_SET_RAM, ADMIN_SET_CPU, ADMIN_SET_DISK, ADMIN_SET_BANNER, ADMIN_ADD_FJ = range(6)
+ADMIN_SET_LIMIT, ADMIN_SET_RAM, ADMIN_SET_CPU, ADMIN_SET_DISK, ADMIN_SET_BANNER, ADMIN_ADD_FJ, ADMIN_SET_EXPIRY = range(7)
 
 # Load environment variables
 load_dotenv()
@@ -97,11 +97,17 @@ def init_db():
     columns = [col[1] for col in cursor.fetchall()]
     if 'suspended' not in columns:
         cursor.execute("ALTER TABLE vps ADD COLUMN suspended INTEGER DEFAULT 0")
+    if 'expires_at' not in columns:
+        cursor.execute("ALTER TABLE vps ADD COLUMN expires_at TIMESTAMP")
+    if 'upgraded' not in columns:
+        cursor.execute("ALTER TABLE vps ADD COLUMN upgraded INTEGER DEFAULT 0")
     
     cursor.execute("PRAGMA table_info(users)")
     user_columns = [col[1] for col in cursor.fetchall()]
     if 'referred_by' not in user_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
+    if 'spent_invites' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN spent_invites INTEGER DEFAULT 0")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS settings (
@@ -116,7 +122,8 @@ def init_db():
         'DEFAULT_RAM': DEFAULT_RAM,
         'DEFAULT_CPU': DEFAULT_CPU,
         'DEFAULT_DISK': DEFAULT_DISK,
-        'BANNER_FILE_ID': ''
+        'BANNER_FILE_ID': '',
+        'DEFAULT_EXPIRY_DAYS': '30'
     }
     for k, v in default_settings.items():
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
@@ -156,10 +163,46 @@ def add_user(user_id, username, referred_by=None):
 def get_invite_count(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM users WHERE referred_by = ?', (user_id,))
+    cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by = ?", (user_id,))
     count = cursor.fetchone()[0]
     conn.close()
     return count
+
+def get_spent_invites(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT spent_invites FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+def spend_invites(user_id, amount):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET spent_invites = spent_invites + ? WHERE user_id = ?", (amount, user_id))
+    conn.commit()
+    conn.close()
+    
+def get_user_created_at(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT created_at FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else "Unknown"
+
+def get_leaderboard():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT u1.username, (SELECT COUNT(*) FROM users u2 WHERE u2.referred_by = u1.user_id) as invites
+        FROM users u1
+        ORDER BY invites DESC
+        LIMIT 10
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
 
 def get_setting(key, default=None):
     conn = get_db_connection()
@@ -208,13 +251,22 @@ def is_banned(user_id):
     conn.close()
     return banned
 
-def add_vps(user_id, container_id, container_name, os_type, hostname, ssh_command, ram=DEFAULT_RAM, cpu=DEFAULT_CPU, disk=DEFAULT_DISK):
+def add_vps(user_id, vps_id, container_name, os_type, hostname, ssh_line, ram=DEFAULT_RAM, cpu=DEFAULT_CPU, disk=DEFAULT_DISK):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO vps (user_id, container_id, container_name, os_type, hostname, status, ssh_command, ram, cpu, disk, suspended)
-        VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, 0)
-    ''', (user_id, container_id, container_name, os_type, hostname, ssh_command, ram, cpu, disk))
+    
+    expiry_days = int(get_setting('DEFAULT_EXPIRY_DAYS', 30))
+    if expiry_days > 0:
+        cursor.execute('''
+            INSERT INTO vps (user_id, container_id, container_name, os_type, hostname, ssh_command, ram, cpu, disk, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' days'))
+        ''', (user_id, vps_id, container_name, os_type, hostname, ssh_line, ram, cpu, disk, expiry_days))
+    else:
+        cursor.execute('''
+            INSERT INTO vps (user_id, container_id, container_name, os_type, hostname, ssh_command, ram, cpu, disk)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, vps_id, container_name, os_type, hostname, ssh_line, ram, cpu, disk))
+        
     conn.commit()
     conn.close()
 
@@ -438,9 +490,9 @@ async def capture_ssh_session_line(process):
 
 def get_main_menu_keyboard():
     return ReplyKeyboardMarkup([
-        [KeyboardButton("🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦")],
-        [KeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦")],
-        [KeyboardButton("❓ 𝗛𝗲𝗹𝗽")]
+        [KeyboardButton("🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦"), KeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦")],
+        [KeyboardButton("👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲"), KeyboardButton("🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱")],
+        [KeyboardButton("🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀"), KeyboardButton("❓ 𝗛𝗲𝗹𝗽")]
     ], resize_keyboard=True)
 
 async def check_force_join(user_id, context: ContextTypes.DEFAULT_TYPE):
@@ -648,9 +700,74 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         keyboard = []
         for v in vps_list[:10]:
             status_emoji = "🟢" if check_proot_status(v['container_id']) == "running" else "🔴"
-            keyboard.append([InlineKeyboardButton(f"{status_emoji} {v['container_name']}", callback_data=f"manage_{v['container_id']}")])
+            upgraded = "💎 " if v.get('upgraded', 0) == 1 else ""
+            keyboard.append([InlineKeyboardButton(f"{upgraded}{status_emoji} {v['container_name']}", callback_data=f"manage_{v['container_id']}")])
         
         await update.message.reply_text("🖥 <b>Your VPS Instances:</b>\nSelect one to manage:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+        
+    elif text == "👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲":
+        created_at = get_user_created_at(user_id)
+        total_invites = get_invite_count(user_id)
+        spent = get_spent_invites(user_id)
+        vps_count = count_user_vps(user_id)
+        bot_username = context.bot.username
+        invite_link = f"https://t.me/{bot_username}?start={user_id}"
+        
+        profile_text = (
+            f"👤 <b>User Profile:</b> {username}\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"🆔 <b>ID:</b> <code>{user_id}</code>\n"
+            f"📅 <b>Joined:</b> {created_at}\n\n"
+            f"👥 <b>Total Invites:</b> {total_invites}\n"
+            f"💰 <b>Available Invites (Points):</b> {total_invites - spent}\n"
+            f"🖥 <b>Total VPS:</b> {vps_count}\n\n"
+            f"🔗 <b>Your Invite Link:</b>\n<code>{invite_link}</code>"
+        )
+        await update.message.reply_text(profile_text, parse_mode=ParseMode.HTML)
+        
+    elif text == "🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱":
+        leaders = get_leaderboard()
+        if not leaders:
+            await update.message.reply_text("🏆 No one is on the leaderboard yet!")
+            return
+            
+        board = "🏆 <b>Top 10 Inviter Leaderboard:</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+        for idx, (uname, inv) in enumerate(leaders, 1):
+            emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🏅"
+            board += f"{emoji} <b>{uname}</b> — {inv} Invites\n"
+        
+        await update.message.reply_text(board, parse_mode=ParseMode.HTML)
+        
+    elif text == "🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀":
+        total_invites = get_invite_count(user_id)
+        spent = get_spent_invites(user_id)
+        available = total_invites - spent
+        
+        msg = (
+            "🎁 <b>Rewards Center</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"You currently have <b>{available}</b> available invite points.\n\n"
+            "💎 <b>Upgrade VPS to 8GB RAM</b>\n"
+            "Cost: 50 Invites\n"
+            "Select a VPS to upgrade:"
+        )
+        
+        vps_list = get_user_vps(user_id)
+        if not vps_list:
+            await update.message.reply_text("❌ You need to Deploy a VPS first before upgrading.")
+            return
+            
+        keyboard = []
+        for v in vps_list[:10]:
+            if v.get('upgraded', 0) == 0:
+                keyboard.append([InlineKeyboardButton(f"Upgrade {v['container_name']}", callback_data=f"upgrade_{v['container_id']}")])
+        
+        if not keyboard:
+            await update.message.reply_text("✅ All your VPS instances are already upgraded!")
+            return
+            
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+        
     elif text == "❓ 𝗛𝗲𝗹𝗽":
         help_text = (
             "🤖 <b>VPS Bot Help:</b>\n\n"
@@ -675,12 +792,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "main_menu":
         await cmd_start(update, context)
         
-    elif data == "help":
-        help_text = (
-            "🤖 <b>VPS Bot Help:</b>\n\n"
-            "Deploy VPS instances up to your limits. These are PRoot environments running within a container."
-        )
-        keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
         await query.message.edit_text(help_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data.startswith("deploy_"):
@@ -711,7 +822,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status = check_proot_status(vps_id)
         response = f"ℹ️ <b>VPS: {vps['container_name']}</b>\n"
         response += f"Status: {status}\nID: <code>{vps_id}</code>\n"
-        response += f"OS: Ubuntu 22.04 (PRoot)\n"
+        
+        is_upgraded = vps.get('upgraded', 0) == 1
+        spec_text = "8GB RAM | 4 CPU" if is_upgraded else f"{vps.get('ram', '2G')} RAM | {vps.get('cpu', '1')} CPU"
+        vip_tag = " 💎 [VIP]" if is_upgraded else ""
+        
+        response += f"OS: Ubuntu 22.04 (PRoot){vip_tag}\n"
+        response += f"Specs: {spec_text}\n"
+        
+        if vps.get('expires_at'):
+            response += f"Expires At: {vps['expires_at']}\n"
         
         keyboard = [
             [InlineKeyboardButton("▶️ Start", callback_data=f"action_start_{vps_id}"),
@@ -782,7 +902,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def get_admin_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 Set Global Limit", callback_data="admin_set_limit")],
+        [InlineKeyboardButton("📊 Set Global Limit", callback_data="admin_set_limit"),
+         InlineKeyboardButton("⌛ Set Expiry (Days)", callback_data="admin_set_expiry")],
         [InlineKeyboardButton("💻 Set Default RAM", callback_data="admin_set_ram"),
          InlineKeyboardButton("💻 Set Default CPU", callback_data="admin_set_cpu")],
         [InlineKeyboardButton("💾 Set Default Disk", callback_data="admin_set_disk")],
@@ -814,6 +935,10 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "admin_set_limit":
         await query.message.edit_text("Send the new Total Server Limit (Number):")
         return ADMIN_SET_LIMIT
+        
+    elif data == "admin_set_expiry":
+        await query.message.edit_text("Send the new Default Expiry in days (e.g., 30). Send 0 for no expiry:")
+        return ADMIN_SET_EXPIRY
         
     elif data == "admin_set_ram":
         await query.message.edit_text("Send the new Default RAM (e.g., 2g, 4g):")
@@ -869,6 +994,8 @@ async def admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE, state:
 
 async def set_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await admin_input(update, context, ADMIN_SET_LIMIT, 'TOTAL_SERVER_LIMIT', "Total Server Limit updated to")
+async def set_expiry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return await admin_input(update, context, ADMIN_SET_EXPIRY, 'DEFAULT_EXPIRY_DAYS', "Default Expiry Days updated to")
 async def set_ram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await admin_input(update, context, ADMIN_SET_RAM, 'DEFAULT_RAM', "Default RAM updated to")
 async def set_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -917,13 +1044,28 @@ async def add_fj_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def sync_vps_statuses(context: ContextTypes.DEFAULT_TYPE):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT container_id, status FROM vps')
+    cursor.execute('SELECT container_id, status, expires_at FROM vps')
     rows = cursor.fetchall()
     conn.close()
     
     for row in rows:
         cid = row['container_id']
         stat = row['status']
+        exp = row['expires_at']
+        
+        if exp:
+            try:
+                # Naive parsing since sqlite datetime is naive UTC usually
+                expiry_date = datetime.strptime(exp, '%Y-%m-%d %H:%M:%S')
+                if datetime.utcnow() > expiry_date:
+                    logger.info(f"VPS {cid} expired. Terminating.")
+                    await async_proot_stop(cid)
+                    await async_proot_rm(cid)
+                    delete_vps(cid)
+                    continue
+            except Exception as e:
+                logger.error(f"Error checking expiry for {cid}: {e}")
+                
         out = check_proot_status(cid)
         if out != stat:
             update_vps_status(cid, out)
@@ -941,12 +1083,13 @@ def main():
 
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
-    application.add_handler(MessageHandler(filters.Regex("^(🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦|🖥 𝗠𝘆 𝗩𝗣𝗦|❓ 𝗛𝗲𝗹𝗽)$"), handle_keyboard_buttons))
+    application.add_handler(MessageHandler(filters.Regex("^(🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦|🖥 𝗠𝘆 𝗩𝗣𝗦|❓ 𝗛𝗲𝗹𝗽|👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲|🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱|🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀)$"), handle_keyboard_buttons))
     
     admin_conv = ConversationHandler(
         entry_points=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
         states={
             ADMIN_SET_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_limit)],
+            ADMIN_SET_EXPIRY: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_expiry)],
             ADMIN_SET_RAM: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_ram)],
             ADMIN_SET_CPU: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_cpu)],
             ADMIN_SET_DISK: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_disk)],
