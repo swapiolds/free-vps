@@ -520,7 +520,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     invite_link = f"https://t.me/{bot_username}?start={user_id}"
 
     msg = (
-        "👋 ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴜʟᴛɪᴍᴀᴛᴇ ᴠᴘꜱ ʙᴏᴛ!\n\n"
+        "👋 ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ꜱᴡᴀᴘɪʜᴏꜱᴛ ᴠᴘꜱ ʙᴏᴛ!\n\n"
         "🎬 ɢᴇᴛ Free vps ʙʏ ʀᴇꜰᴇʀʀɪɴɢ ꜰʀɪᴇɴᴅꜱ ᴏʀ ʀᴇᴅᴇᴇᴍɪɴɢ ᴘᴏɪɴᴛꜱ.\n\n"
         "🔥 ꜰᴇᴀᴛᴜʀᴇꜱ:\n"
         "• ɪɴꜱᴛᴀɴᴛ ᴅᴇʟɪᴠᴇʀʏ\n"
