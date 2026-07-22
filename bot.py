@@ -939,7 +939,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.edit_text("✅ <b>ᴠᴘꜱ ʀᴇᴍᴏᴠᴇᴅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ.</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
             
         elif action == "genssh":
-            ssh_line = vps['ssh_line']
+            await query.message.edit_text("⏳ <b>ɢᴇɴᴇʀᴀᴛɪɴɢ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ...</b>", parse_mode=ParseMode.HTML)
+            import asyncio
+            await asyncio.sleep(1)
+            ssh_line = vps['ssh_command']
             status = check_proot_status(vps_id)
             if not ssh_line or status != "running":
                 await query.message.edit_text("❌ <b>ᴠᴘꜱ ɪꜱ ɴᴏᴛ ʀᴜɴɴɪɴɢ ᴏʀ ɴᴏ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ᴀᴄᴛɪᴠᴇ. ᴘʟᴇᴀꜱᴇ ꜱᴛᴀʀᴛ ᴏʀ ʀᴇꜱᴛᴀʀᴛ ɪᴛ.</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data=f"manage_{vps_id}")]]))
