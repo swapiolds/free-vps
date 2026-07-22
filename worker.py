@@ -64,7 +64,7 @@ async def async_extract_rootfs(vps_id):
 
 async def async_proot_start(vps_id):
     target_dir = os.path.join(VPS_DATA_DIR, vps_id)
-    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b {target_dir}/.fake_hostname:/proc/sys/kernel/hostname -w /root /bin/bash -c 'if ! command -v tmate &> /dev/null; then apt-get update >/dev/null && apt-get install -y tmate curl wget sudo >/dev/null; fi && tmate -F'"
+    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b /etc/resolv.conf:/etc/resolv.conf -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b {target_dir}/.fake_hostname:/proc/sys/kernel/hostname -w /root /bin/bash -c 'if ! command -v tmate &> /dev/null; then apt-get update >/dev/null && apt-get install -y tmate curl wget sudo >/dev/null; fi && tmate -F'"
     proc = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
