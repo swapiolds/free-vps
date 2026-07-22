@@ -662,17 +662,17 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         disk = get_setting('DEFAULT_DISK', DEFAULT_DISK)
         add_vps(user_id, vps_id, container_name, "ubuntu", hostname, ssh_line, ram=ram, cpu=cpu, disk=disk)
         text = (
-            "✅ <b>Your Premium VPS is Ready!</b> 🎉\n"
+            "✅ <b>ʏᴏᴜʀ ᴘʀᴇᴍɪᴜᴍ ᴠᴘꜱ ɪꜱ ʀᴇᴀᴅʏ!</b> 🎉\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "🖥️ <b>Server Specifications:</b>\n"
-            f"• <b>OS:</b> Ubuntu 22.04 LTS\n"
-            f"• <b>RAM:</b> {ram} RAM\n"
-            f"• <b>CPU:</b> {cpu} Cores\n"
-            f"• <b>Storage:</b> {disk} Disk\n"
+            "🖥️ <b>ꜱᴇʀᴠᴇʀ ꜱᴘᴇᴄɪꜰɪᴄᴀᴛɪᴏɴꜱ:</b>\n"
+            f"• <b>ᴏꜱ:</b> ᴜʙᴜɴᴛᴜ 22.04 ʟᴛꜱ\n"
+            f"• <b>ʀᴀᴍ:</b> {ram} ʀᴀᴍ\n"
+            f"• <b>ᴄᴘᴜ:</b> {cpu} ᴄᴏʀᴇꜱ\n"
+            f"• <b>ꜱᴛᴏʀᴀɢᴇ:</b> {disk} ᴅɪꜱᴋ\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "🔑 <b>SSH Access Command:</b>\n"
+            "🔑 <b>ꜱꜱʜ ᴀᴄᴄᴇꜱꜱ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
             f"<code>{ssh_line}</code>\n\n"
-            "<i>(Copy the above command and paste it in Termux or any SSH client to connect)</i>"
+            "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
         )
         try:
             await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
@@ -717,7 +717,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
             upgraded = "💎 " if v['upgraded'] == 1 else ""
             keyboard.append([InlineKeyboardButton(f"{upgraded}{status_emoji} {v['container_name']}", callback_data=f"manage_{v['container_id']}")])
         
-        await update.message.reply_text("🖥 <b>Your VPS Instances:</b>\nSelect one to manage:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text("🖥 <b>ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ:</b>\nꜱᴇʟᴇᴄᴛ ᴏɴᴇ ᴛᴏ ᴍᴀɴᴀɢᴇ:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif text == "👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲":
         created_at = get_user_created_at(user_id)
@@ -728,14 +728,14 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         invite_link = f"https://t.me/{bot_username}?start={user_id}"
         
         profile_text = (
-            f"👤 <b>User Profile:</b> {username}\n"
+            f"👤 <b>ᴜꜱᴇʀ ᴘʀᴏꜰɪʟᴇ:</b> {username}\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            f"🆔 <b>ID:</b> <code>{user_id}</code>\n"
-            f"📅 <b>Joined:</b> {created_at}\n\n"
-            f"👥 <b>Total Invites:</b> {total_invites}\n"
-            f"💰 <b>Available Invites (Points):</b> {total_invites - spent}\n"
-            f"🖥 <b>Total VPS:</b> {vps_count}\n\n"
-            f"🔗 <b>Your Invite Link:</b>\n<code>{invite_link}</code>"
+            f"🆔 <b>ɪᴅ:</b> <code>{user_id}</code>\n"
+            f"📅 <b>ᴊᴏɪɴᴇᴅ:</b> {created_at}\n\n"
+            f"👥 <b>ᴛᴏᴛᴀʟ ɪɴᴠɪᴛᴇꜱ:</b> {total_invites}\n"
+            f"💰 <b>ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴᴠɪᴛᴇꜱ (ᴘᴏɪɴᴛꜱ):</b> {total_invites - spent}\n"
+            f"🖥 <b>ᴛᴏᴛᴀʟ ᴠᴘꜱ:</b> {vps_count}\n\n"
+            f"🔗 <b>ʏᴏᴜʀ ɪɴᴠɪᴛᴇ ʟɪɴᴋ:</b>\n<code>{invite_link}</code>"
         )
         await update.message.reply_text(profile_text, parse_mode=ParseMode.HTML)
         
@@ -745,10 +745,10 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text("🏆 No one is on the leaderboard yet!")
             return
             
-        board = "🏆 <b>Top 10 Inviter Leaderboard:</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+        board = "🏆 <b>ᴛᴏᴘ 10 ɪɴᴠɪᴛᴇʀ ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ:</b>\n━━━━━━━━━━━━━━━━━━━━\n"
         for idx, (uname, inv) in enumerate(leaders, 1):
             emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🏅"
-            board += f"{emoji} <b>{uname}</b> — {inv} Invites\n"
+            board += f"{emoji} <b>{uname}</b> — {inv} ɪɴᴠɪᴛᴇꜱ\n"
         
         await update.message.reply_text(board, parse_mode=ParseMode.HTML)
         
@@ -758,12 +758,12 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         available = total_invites - spent
         
         msg = (
-            "🎁 <b>Rewards Center</b>\n"
+            "🎁 <b>ʀᴇᴡᴀʀᴅꜱ ᴄᴇɴᴛᴇʀ</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            f"You currently have <b>{available}</b> available invite points.\n\n"
-            "💎 <b>Upgrade VPS to 8GB RAM</b>\n"
-            "Cost: 50 Invites\n"
-            "Select a VPS to upgrade:"
+            f"ʏᴏᴜ ᴄᴜʀʀᴇɴᴛʟʏ ʜᴀᴠᴇ <b>{available}</b> ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴᴠɪᴛᴇ ᴘᴏɪɴᴛꜱ.\n\n"
+            "💎 <b>ᴜᴘɢʀᴀᴅᴇ ᴠᴘꜱ ᴛᴏ 8ɢʙ ʀᴀᴍ</b>\n"
+            "ᴄᴏꜱᴛ: 50 ɪɴᴠɪᴛᴇꜱ\n"
+            "ꜱᴇʟᴇᴄᴛ ᴀ ᴠᴘꜱ ᴛᴏ ᴜᴘɢʀᴀᴅᴇ:"
         )
         
         vps_list = get_user_vps(user_id)
@@ -784,23 +784,23 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         
     elif text == "🛍️ 𝗕𝘂𝘆 𝗩𝗣𝗦":
         buy_text = (
-            "🛍️ <b>Buy Premium VPS</b>\n"
+            "🛍️ <b>ʙᴜʏ ᴘʀᴇᴍɪᴜᴍ ᴠᴘꜱ</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "Want to bypass the invite limit and get a high-performance VPS instantly?\n\n"
-            "🌐 <b>Visit our website:</b> <a href='https://swapihost.in'>swapihost.in</a>\n"
-            "💬 <b>Contact Admin:</b> @swapibhai\n\n"
-            "<i>Get 24/7 uptime, dedicated resources, and premium support!</i>"
+            "ᴡᴀɴᴛ ᴛᴏ ʙʏᴘᴀꜱꜱ ᴛʜᴇ ɪɴᴠɪᴛᴇ ʟɪᴍɪᴛ ᴀɴᴅ ɢᴇᴛ ᴀ ʜɪɢʜ-ᴘᴇʀꜰᴏʀᴍᴀɴᴄᴇ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴛʟʏ?\n\n"
+            "🌐 <b>ᴠɪꜱɪᴛ ᴏᴜʀ ᴡᴇʙꜱɪᴛᴇ:</b> <a href='https://swapihost.in'>swapihost.in</a>\n"
+            "💬 <b>ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ:</b> @swapibhai\n\n"
+            "<i>ɢᴇᴛ 24/7 ᴜᴘᴛɪᴍᴇ, ᴅᴇᴅɪᴄᴀᴛᴇᴅ ʀᴇꜱᴏᴜʀᴄᴇꜱ, ᴀɴᴅ ᴘʀᴇᴍɪᴜᴍ ꜱᴜᴘᴘᴏʀᴛ!</i>"
         )
         await update.message.reply_text(buy_text, parse_mode=ParseMode.HTML)
         
     elif text == "❓ 𝗛𝗲𝗹𝗽":
         help_text = (
-            "🤖 <b>VPS Bot Support:</b>\n"
+            "🤖 <b>ᴠᴘꜱ ʙᴏᴛ ꜱᴜᴘᴘᴏʀᴛ:</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "Having trouble with your VPS or need assistance?\n\n"
-            "💬 <b>Direct Support:</b> @swapibhai\n"
-            "🌐 <b>Website:</b> <a href='https://swapihost.in'>swapihost.in</a>\n\n"
-            "<i>We are here to help!</i>"
+            "ʜᴀᴠɪɴɢ ᴛʀᴏᴜʙʟᴇ ᴡɪᴛʜ ʏᴏᴜʀ ᴠᴘꜱ ᴏʀ ɴᴇᴇᴅ ᴀꜱꜱɪꜱᴛᴀɴᴄᴇ?\n\n"
+            "💬 <b>ᴅɪʀᴇᴄᴛ ꜱᴜᴘᴘᴏʀᴛ:</b> @swapibhai\n"
+            "🌐 <b>ᴡᴇʙꜱɪᴛᴇ:</b> <a href='https://swapihost.in'>swapihost.in</a>\n\n"
+            "<i>ᴡᴇ ᴀʀᴇ ʜᴇʀᴇ ᴛᴏ ʜᴇʟᴘ!</i>"
         )
         await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
 
@@ -847,18 +847,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
             
         status = check_proot_status(vps_id)
-        response = f"ℹ️ <b>VPS: {vps['container_name']}</b>\n"
-        response += f"Status: {status}\nID: <code>{vps_id}</code>\n"
+        response = f"ℹ️ <b>ᴠᴘꜱ: {vps['container_name']}</b>\n"
+        response += f"ꜱᴛᴀᴛᴜꜱ: {status}\nɪᴅ: <code>{vps_id}</code>\n"
         
         is_upgraded = vps['upgraded'] == 1
-        spec_text = "8GB RAM | 4 CPU" if is_upgraded else f"{vps['ram']} RAM | {vps['cpu']} CPU"
-        vip_tag = " 💎 [VIP]" if is_upgraded else ""
+        spec_text = "8ɢʙ ʀᴀᴍ | 4 ᴄᴘᴜ" if is_upgraded else f"{vps['ram']} ʀᴀᴍ | {vps['cpu']} ᴄᴘᴜ"
+        vip_tag = " 💎 [ᴠɪᴘ]" if is_upgraded else ""
         
-        response += f"OS: Ubuntu 22.04 (PRoot){vip_tag}\n"
-        response += f"Specs: {spec_text}\n"
+        response += f"ᴏꜱ: ᴜʙᴜɴᴛᴜ 22.04 (ᴘʀᴏᴏᴛ){vip_tag}\n"
+        response += f"ꜱᴘᴇᴄꜱ: {spec_text}\n"
         
         if vps['expires_at']:
-            response += f"Expires At: {vps['expires_at']}\n"
+            response += f"ᴇxᴘɪʀᴇꜱ ᴀᴛ: {vps['expires_at']}\n"
         
         keyboard = [
             [InlineKeyboardButton("▶️ Start", callback_data=f"action_start_{vps_id}"),
