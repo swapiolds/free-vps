@@ -6,7 +6,9 @@ echo "🚀 Installing VPS Worker Node..."
 wget -O /root/worker.py https://raw.githubusercontent.com/swapiolds/free-vps/main/worker.py
 
 # Install dependency
-pip install aiohttp
+apt-get update -y
+apt-get install -y python3 python3-pip
+pip3 install aiohttp psutil --break-system-packages || pip3 install aiohttp psutil || pip install aiohttp psutil
 
 # Create SystemD Service
 cat <<EOF > /etc/systemd/system/vpsworker.service
