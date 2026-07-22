@@ -156,12 +156,15 @@ def add_user(user_id, username, referred_by=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT 1 FROM users WHERE user_id = ?', (user_id,))
+    is_new = False
     if cursor.fetchone():
         cursor.execute('UPDATE users SET username = ? WHERE user_id = ?', (username, user_id))
     else:
         cursor.execute('INSERT INTO users (user_id, username, referred_by) VALUES (?, ?, ?)', (user_id, username, referred_by))
+        is_new = True
     conn.commit()
     conn.close()
+    return is_new
 
 def get_invite_count(user_id):
     conn = get_db_connection()
@@ -558,18 +561,30 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Handle Referral System
+    is_new = False
+    referred_by_id = None
     if update.message and context.args:
         try:
             referred_by = int(context.args[0])
             if referred_by != user_id:
-                # add_user will ignore if user already exists, so referred_by is only set on first join
-                add_user(user_id, username, referred_by)
+                referred_by_id = referred_by
+                is_new = add_user(user_id, username, referred_by)
             else:
-                add_user(user_id, username)
+                is_new = add_user(user_id, username)
         except ValueError:
-            add_user(user_id, username)
+            is_new = add_user(user_id, username)
     else:
-        add_user(user_id, username)
+        is_new = add_user(user_id, username)
+        
+    if is_new and referred_by_id:
+        try:
+            await context.bot.send_message(
+                chat_id=referred_by_id,
+                text=f"🎉 <b>ɴᴇᴡ ʀᴇꜰᴇʀʀᴀʟ!</b>\n━━━━━━━━━━━━━━━━━━━━\n👤 <b>{username}</b> ʜᴀꜱ ᴊᴏɪɴᴇᴅ ᴜꜱɪɴɢ ʏᴏᴜʀ ʟɪɴᴋ!\n🎁 ʏᴏᴜ ᴇᴀʀɴᴇᴅ <b>1 ɪɴᴠɪᴛᴇ ᴘᴏɪɴᴛ</b>.",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            logger.error(f"Failed to notify referrer: {e}")
 
     invites = get_invite_count(user_id)
     bot_username = context.bot.username
@@ -587,29 +602,22 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     banner = get_setting('BANNER_FILE_ID', '')
     
-    if update.message:
-        if banner:
-            try:
-                await update.message.reply_photo(photo=banner, caption=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
-                return
-            except Exception:
-                pass
-        await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
-    elif update.callback_query:
-        if banner and not update.callback_query.message.photo:
-            try:
-                await update.callback_query.message.delete()
-                await update.callback_query.message.reply_photo(photo=banner, caption=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
-                return
-            except Exception:
-                pass
-        elif banner and update.callback_query.message.photo:
-            try:
-                await update.callback_query.message.edit_caption(caption=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
-                return
-            except Exception:
-                pass
-        await update.callback_query.message.edit_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
+    if update.callback_query:
+        try:
+            await update.callback_query.message.delete()
+        except:
+            pass
+            
+    chat_id = update.effective_chat.id
+    
+    if banner:
+        try:
+            await context.bot.send_photo(chat_id=chat_id, photo=banner, caption=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
+            return
+        except Exception:
+            pass
+            
+    await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
 
 async def handle_create_vps(update_or_query, context, os_type, user_id, username):
     # Determine if it's a message or callback query
