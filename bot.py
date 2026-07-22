@@ -7,7 +7,8 @@ import re
 import time
 import asyncio
 import sqlite3
-import docker
+import uuid
+import urllib.request
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 
@@ -24,7 +25,7 @@ ADMIN_ID = int(os.getenv('ADMIN_ID', 0))
 BOT_STATUS_NAME = os.getenv('BOT_STATUS_NAME', 'UnixNodes')
 WATERMARK = os.getenv('WATERMARK', 'Powered by UnixNodes VPS Bot')
 
-# VPS Defaults from .env
+# VPS Defaults
 DEFAULT_RAM = os.getenv('DEFAULT_RAM', '2g')
 DEFAULT_CPU = os.getenv('DEFAULT_CPU', '1')
 DEFAULT_DISK = os.getenv('DEFAULT_DISK', '10G')
@@ -32,6 +33,12 @@ VPS_HOSTNAME = os.getenv('VPS_HOSTNAME', 'unix-free')
 SERVER_LIMIT = int(os.getenv('SERVER_LIMIT', 1))
 TOTAL_SERVER_LIMIT = int(os.getenv('TOTAL_SERVER_LIMIT', 50))
 DATABASE_FILE = os.getenv('DATABASE_FILE', 'vps_bot.db')
+
+VPS_DATA_DIR = os.path.join(os.getcwd(), "vps_data")
+UBUNTU_ROOTFS_URL = "https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04-base-amd64.tar.gz"
+UBUNTU_TAR_PATH = os.path.join(os.getcwd(), "ubuntu-base.tar.gz")
+
+os.makedirs(VPS_DATA_DIR, exist_ok=True)
 
 # Logging setup
 logging.basicConfig(
@@ -44,8 +51,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Docker client
-client = docker.from_env()
+
+def download_rootfs():
+    if not os.path.exists(UBUNTU_TAR_PATH):
+        logger.info("Downloading Ubuntu 22.04 RootFS... (This may take a few minutes)")
+        urllib.request.urlretrieve(UBUNTU_ROOTFS_URL, UBUNTU_TAR_PATH)
+        logger.info("RootFS downloaded successfully!")
 
 def is_admin(user_id):
     return user_id == ADMIN_ID
@@ -176,141 +187,95 @@ def get_total_instances():
     conn.close()
     return count
 
-def parse_gb(resource_str):
-    match = re.match(r'(\d+(?:\.\d+)?)([mMgG])?', resource_str.lower())
-    if match:
-        num = float(match.group(1))
-        unit = match.group(2) or 'g'
-        if unit in ['g', '']: return num
-        elif unit in ['m']: return num / 1024.0
-    return 0.0
+# ----------------- PRoot Helpers -----------------
 
-# ----------------- Docker Helpers -----------------
-
-def get_uptime(container_id):
+def check_proot_status(vps_id):
     try:
-        output = subprocess.check_output(["docker", "inspect", "-f", "{{.State.StartedAt}}", container_id], stderr=subprocess.STDOUT).decode().strip()
-        if output == "<no value>": return "Not running"
-        start_time = datetime.fromisoformat(output.replace('Z', '+00:00'))
-        now = datetime.now(timezone.utc)
-        uptime = now - start_time
-        days, remainder = uptime.days, uptime.seconds
-        hours, remainder = divmod(remainder, 3600)
-        minutes, _ = divmod(remainder, 60)
-        return f"{days}d {hours}h {minutes}m"
-    except Exception: return "Unknown"
+        cmd = f"pgrep -f 'proot.*{vps_id}'"
+        output = subprocess.check_output(cmd, shell=True).decode().strip()
+        return "running" if output else "stopped"
+    except Exception:
+        return "stopped"
 
-def get_stats(container_id):
-    try:
-        output = subprocess.check_output([
-            "docker", "stats", "--no-stream", "--format", "{{.CPUPerc}}\t{{.MemUsage}}", container_id
-        ], stderr=subprocess.STDOUT).decode().strip()
-        parts = output.split('\t')
-        if len(parts) == 2: return {'cpu': parts[0], 'mem': parts[1]}
-    except Exception: pass
-    return {'cpu': 'N/A', 'mem': 'N/A'}
-
-def get_logs(container_id, lines=30):
-    try:
-        output = subprocess.check_output(["docker", "logs", "--tail", str(lines), container_id], stderr=subprocess.STDOUT).decode()
-        return output[-2000:]
-    except Exception: return "Failed to fetch logs"
-
-async def async_docker_run(image, hostname, ram, cpu, disk, container_name):
-    cmd = [
-        "docker", "run", "-d",
-        "--privileged", "--cap-add=ALL",
-        "--restart", "unless-stopped",
-        f"--memory={ram}", f"--cpus={cpu}",
-        f"--hostname={hostname}", f"--name={container_name}",
-        image, "tail", "-f", "/dev/null"
-    ]
-    try:
-        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
-        if proc.returncode != 0: return None
-        return stdout.decode().strip()
-    except Exception: return None
-
-async def async_docker_start(container_id):
-    try:
-        proc = await asyncio.create_subprocess_exec("docker", "start", container_id, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-        await asyncio.wait_for(proc.communicate(), timeout=30.0)
-        return proc.returncode == 0
-    except Exception: return False
-
-async def async_docker_stop(container_id):
-    try:
-        proc = await asyncio.create_subprocess_exec("docker", "stop", container_id, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-        await asyncio.wait_for(proc.communicate(), timeout=30.0)
-        return proc.returncode == 0
-    except Exception: return False
-
-async def async_docker_restart(container_id):
-    try:
-        proc = await asyncio.create_subprocess_exec("docker", "restart", container_id, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-        await asyncio.wait_for(proc.communicate(), timeout=30.0)
-        return proc.returncode == 0
-    except Exception: return False
-
-async def async_docker_rm(container_id):
-    try:
-        proc = await asyncio.create_subprocess_exec("docker", "rm", "-f", container_id, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+async def async_extract_rootfs(vps_id):
+    target_dir = os.path.join(VPS_DATA_DIR, vps_id)
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir, exist_ok=True)
+        logger.info(f"Extracting RootFS for {vps_id}...")
+        proc = await asyncio.create_subprocess_exec(
+            "tar", "-xf", UBUNTU_TAR_PATH, "-C", target_dir,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
+        )
         await proc.communicate()
-        return proc.returncode == 0
+        
+        # Fix DNS
+        resolv_conf = os.path.join(target_dir, "etc", "resolv.conf")
+        if os.path.exists(resolv_conf):
+            os.remove(resolv_conf)
+        with open(resolv_conf, "w") as f:
+            f.write("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
+            
+        logger.info(f"RootFS ready for {vps_id}")
+    return target_dir
+
+async def async_proot_start(vps_id):
+    target_dir = os.path.join(VPS_DATA_DIR, vps_id)
+    # Install tmate and start it
+    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b /sys -w /root /bin/bash -c 'apt-get update >/dev/null && apt-get install -y tmate curl wget sudo openssh-client >/dev/null && tmate -F'"
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    return proc
+
+async def async_proot_stop(vps_id):
+    try:
+        cmd = f"pkill -f 'proot.*{vps_id}'"
+        proc = await asyncio.create_subprocess_shell(cmd)
+        await proc.communicate()
+        return True
     except Exception: return False
 
-async def async_install_tmate(container_id):
-    install_cmd = "apt-get update && apt-get install -y tmate curl wget sudo openssh-client"
+async def async_proot_rm(vps_id):
     try:
-        proc = await asyncio.create_subprocess_exec("docker", "exec", container_id, "bash", "-c", install_cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-        await asyncio.wait_for(proc.communicate(), timeout=120.0)
-    except Exception: pass
+        target_dir = os.path.join(VPS_DATA_DIR, vps_id)
+        cmd = f"rm -rf {target_dir}"
+        proc = await asyncio.create_subprocess_shell(cmd)
+        await proc.communicate()
+        return True
+    except Exception: return False
 
 async def capture_ssh_session_line(process):
-    while True:
+    start_time = time.time()
+    while time.time() - start_time < 180: # Wait up to 3 mins for tmate
         try:
-            output = await asyncio.wait_for(process.stdout.readline(), timeout=30.0)
-            if not output: break
+            output = await asyncio.wait_for(process.stdout.readline(), timeout=5.0)
+            if not output:
+                break
             output = output.decode('utf-8').strip()
             if "ssh session:" in output.lower():
                 return output.split("ssh session:")[-1].strip()
-        except asyncio.TimeoutError: break
+        except asyncio.TimeoutError:
+            continue
     return None
-
-async def docker_exec_tmate(container_id):
-    try:
-        return await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    except Exception: return None
 
 # ----------------- UI / Interactive Handlers -----------------
 
 def get_main_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Deploy VPS", callback_data="deploy_ubuntu")],
+        [InlineKeyboardButton("🚀 Deploy VPS (Ubuntu)", callback_data="deploy_ubuntu")],
         [InlineKeyboardButton("🖥 My VPS Instances", callback_data="list_vps")],
         [InlineKeyboardButton("❓ Help", callback_data="help")]
     ])
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = "👋 <b>Welcome to UnixNodes VPS Bot!</b>\n\nUse the buttons below to deploy and manage your VPS instances."
+    msg = "👋 <b>Welcome to UnixNodes VPS Bot! (PRoot Edition)</b>\n\nUse the buttons below to deploy and manage your VPS instances."
     if update.message:
         await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
     elif update.callback_query:
         await update.callback_query.message.edit_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
-
-async def regen_ssh_for_ui(query, context, container_id, user_id):
-    exec_process = await docker_exec_tmate(container_id)
-    if exec_process:
-        ssh_line = await capture_ssh_session_line(exec_process)
-        if ssh_line:
-            update_vps_ssh(container_id, ssh_line)
-            msg = f"✅ <b>New SSH Session Generated:</b>\n<code>{ssh_line}</code>"
-            try:
-                await context.bot.send_message(chat_id=user_id, text=msg, parse_mode=ParseMode.HTML)
-            except Exception: pass
-            return True
-    return False
 
 async def handle_create_vps(query, context, os_type, user_id, username):
     add_user(user_id, username)
@@ -324,30 +289,23 @@ async def handle_create_vps(query, context, os_type, user_id, username):
         await query.message.edit_text("❌ Global server limit reached.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
         return
 
-    msg = await query.message.edit_text("⏳ Creating your VPS instance... This takes about 15-20 seconds.")
+    msg = await query.message.edit_text("⏳ Creating your VPS instance... This takes about 30-60 seconds (Extracting RootFS and Installing Packages).")
     
+    vps_id = str(uuid.uuid4())[:8]
     hostname = f"{VPS_HOSTNAME}-{user_id}"
-    suffix = random.randint(1000, 9999)
-    container_name = f"{os_type}-vps-{user_id}-{suffix}"
-    image = "ubuntu:22.04" if os_type == "ubuntu" else "debian:bookworm"
+    container_name = f"vps-{user_id}-{vps_id}"
     
-    container_id = await async_docker_run(image, hostname, DEFAULT_RAM, DEFAULT_CPU, DEFAULT_DISK, container_name)
-    if not container_id:
-        await msg.edit_text("❌ Failed to create Docker container.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
-        return
-        
-    await asyncio.sleep(5)
-    await async_install_tmate(container_id)
-    await asyncio.sleep(8)
+    await async_extract_rootfs(vps_id)
     
-    exec_process = await docker_exec_tmate(container_id)
-    ssh_line = await capture_ssh_session_line(exec_process)
+    proc = await async_proot_start(vps_id)
+    
+    ssh_line = await capture_ssh_session_line(proc)
     
     keyboard = [[InlineKeyboardButton("🖥 Go to My VPS", callback_data="list_vps")]]
     
     if ssh_line:
-        add_vps(user_id, container_id, container_name, os_type, hostname, ssh_line)
-        text = f"✅ <b>VPS Instance Created</b>\nOS: {os_type.capitalize()}\n<code>{ssh_line}</code>"
+        add_vps(user_id, vps_id, container_name, "ubuntu", hostname, ssh_line)
+        text = f"✅ <b>VPS Instance Created (PRoot)</b>\nOS: Ubuntu 22.04\n<code>{ssh_line}</code>"
         try:
             await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
             await msg.edit_text("✅ VPS created! Check your DMs for SSH details.", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -355,8 +313,7 @@ async def handle_create_vps(query, context, os_type, user_id, username):
             await msg.edit_text(f"✅ VPS created! Here are the details:\n\n{text}", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await msg.edit_text("❌ Creation failed: Unable to generate SSH session.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
-        await async_docker_stop(container_id)
-        await async_docker_rm(container_id)
+        await async_proot_stop(vps_id)
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -372,14 +329,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "help":
         help_text = (
             "🤖 <b>VPS Bot Help:</b>\n\n"
-            "Deploy VPS instances up to your limits. Once deployed, you can start, stop, restart, or connect to them via the panel."
+            "Deploy VPS instances up to your limits. These are PRoot environments running within a container."
         )
         keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
         await query.message.edit_text(help_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data.startswith("deploy_"):
-        os_type = data.split("_")[1]
-        await handle_create_vps(query, context, os_type, user_id, username)
+        await handle_create_vps(query, context, "ubuntu", user_id, username)
         
     elif data == "list_vps":
         vps_list = get_user_vps(user_id)
@@ -389,35 +345,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         keyboard = []
-        for v in vps_list[:10]: # Limit to 10 for telegram limits
-            status_emoji = "🟢" if v['status'] == "running" else "🔴"
+        for v in vps_list[:10]:
+            status_emoji = "🟢" if check_proot_status(v['container_id']) == "running" else "🔴"
             keyboard.append([InlineKeyboardButton(f"{status_emoji} {v['container_name']}", callback_data=f"manage_{v['container_id']}")])
         
         keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")])
         await query.message.edit_text("🖥 <b>Your VPS Instances:</b>\nSelect one to manage:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data.startswith("manage_"):
-        container_id = data.replace("manage_", "")
-        vps = get_vps_by_identifier(user_id, container_id)
+        vps_id = data.replace("manage_", "")
+        vps = get_vps_by_identifier(user_id, vps_id)
         if not vps:
             await query.message.edit_text("❌ VPS not found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to List", callback_data="list_vps")]]))
             return
             
-        stats = get_stats(container_id)
-        uptime = get_uptime(container_id)
+        status = check_proot_status(vps_id)
         response = f"ℹ️ <b>VPS: {vps['container_name']}</b>\n"
-        response += f"Status: {vps['status']}\nID: <code>{container_id}</code>\n"
-        response += f"OS: {vps['os_type'].capitalize()} | RAM: {vps['ram']} | CPU: {vps['cpu']}\n"
-        response += f"Usage: CPU {stats['cpu']} | Mem {stats['mem']}\n"
-        response += f"Uptime: {uptime}\n"
+        response += f"Status: {status}\nID: <code>{vps_id}</code>\n"
+        response += f"OS: Ubuntu 22.04 (PRoot)\n"
         
         keyboard = [
-            [InlineKeyboardButton("▶️ Start", callback_data=f"action_start_{container_id}"),
-             InlineKeyboardButton("⏹ Stop", callback_data=f"action_stop_{container_id}")],
-            [InlineKeyboardButton("🔄 Restart", callback_data=f"action_restart_{container_id}"),
-             InlineKeyboardButton("🔑 Get SSH", callback_data=f"action_ssh_{container_id}")],
-            [InlineKeyboardButton("📄 Logs", callback_data=f"action_logs_{container_id}"),
-             InlineKeyboardButton("❌ Delete", callback_data=f"action_delete_{container_id}")],
+            [InlineKeyboardButton("▶️ Start", callback_data=f"action_start_{vps_id}"),
+             InlineKeyboardButton("⏹ Stop", callback_data=f"action_stop_{vps_id}")],
+            [InlineKeyboardButton("🔄 Restart", callback_data=f"action_restart_{vps_id}")],
+            [InlineKeyboardButton("❌ Delete", callback_data=f"action_delete_{vps_id}")],
             [InlineKeyboardButton("🔙 Back to List", callback_data="list_vps")]
         ]
         await query.message.edit_text(response, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -425,48 +376,48 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("action_"):
         parts = data.split("_")
         action = parts[1]
-        container_id = parts[2]
+        vps_id = parts[2]
         
-        # Verify ownership again
-        vps = get_vps_by_identifier(user_id, container_id)
+        vps = get_vps_by_identifier(user_id, vps_id)
         if not vps:
             await query.message.edit_text("❌ VPS not found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="list_vps")]]))
             return
             
         if action in ["start", "stop", "restart"]:
             await query.message.edit_text(f"⏳ Processing `{action}` action...", parse_mode=ParseMode.MARKDOWN)
-            if action == "start": success = await async_docker_start(container_id)
-            elif action == "stop": success = await async_docker_stop(container_id)
-            elif action == "restart": success = await async_docker_restart(container_id)
+            if action == "start": 
+                proc = await async_proot_start(vps_id)
+                success = True
+                ssh_line = await capture_ssh_session_line(proc)
+                if ssh_line:
+                    update_vps_ssh(vps_id, ssh_line)
+                    try:
+                        await context.bot.send_message(chat_id=user_id, text=f"✅ <b>New SSH Session Generated:</b>\n<code>{ssh_line}</code>", parse_mode=ParseMode.HTML)
+                    except: pass
+            elif action == "stop": 
+                success = await async_proot_stop(vps_id)
+            elif action == "restart": 
+                await async_proot_stop(vps_id)
+                proc = await async_proot_start(vps_id)
+                success = True
+                ssh_line = await capture_ssh_session_line(proc)
+                if ssh_line:
+                    update_vps_ssh(vps_id, ssh_line)
             
             if success:
-                update_vps_status(container_id, "running" if action in ["start", "restart"] else "stopped")
-                if action in ["start", "restart"]:
-                    await regen_ssh_for_ui(query, context, container_id, user_id)
+                update_vps_status(vps_id, "running" if action in ["start", "restart"] else "stopped")
             
-            keyboard = [[InlineKeyboardButton("🔙 Back to VPS", callback_data=f"manage_{container_id}")]]
+            keyboard = [[InlineKeyboardButton("🔙 Back to VPS", callback_data=f"manage_{vps_id}")]]
             text = f"✅ Action '{action.title()}' completed successfully." if success else f"❌ Action '{action.title()}' failed."
             await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-        elif action == "ssh":
-            await query.message.edit_text("⏳ Generating SSH session...", parse_mode=ParseMode.MARKDOWN)
-            success = await regen_ssh_for_ui(query, context, container_id, user_id)
-            keyboard = [[InlineKeyboardButton("🔙 Back to VPS", callback_data=f"manage_{container_id}")]]
-            text = "✅ SSH session sent to your DMs." if success else "❌ Failed to generate SSH."
-            await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-            
         elif action == "delete":
             await query.message.edit_text("⏳ Removing VPS...")
-            await async_docker_stop(container_id)
-            await async_docker_rm(container_id)
-            delete_vps(container_id)
+            await async_proot_stop(vps_id)
+            await async_proot_rm(vps_id)
+            delete_vps(vps_id)
             keyboard = [[InlineKeyboardButton("🔙 Back to List", callback_data="list_vps")]]
             await query.message.edit_text("✅ VPS Removed Successfully.", reply_markup=InlineKeyboardMarkup(keyboard))
-            
-        elif action == "logs":
-            logs = get_logs(container_id, 30)
-            keyboard = [[InlineKeyboardButton("🔙 Back to VPS", callback_data=f"manage_{container_id}")]]
-            await query.message.edit_text(f"📄 <b>Logs:</b>\n<pre>{logs}</pre>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 # ----------------- Background Tasks -----------------
@@ -481,13 +432,9 @@ async def sync_vps_statuses(context: ContextTypes.DEFAULT_TYPE):
     for row in rows:
         cid = row['container_id']
         stat = row['status']
-        try:
-            out = subprocess.check_output(["docker", "inspect", "-f", "{{.State.Status}}", cid]).decode().strip()
-            if out != stat:
-                update_vps_status(cid, out)
-        except Exception:
-            if stat != "stopped":
-                update_vps_status(cid, "stopped")
+        out = check_proot_status(cid)
+        if out != stat:
+            update_vps_status(cid, out)
 
 # ----------------- Main -----------------
 
@@ -496,20 +443,18 @@ def main():
         logger.error("TELEGRAM_TOKEN is missing from environment variables.")
         sys.exit(1)
         
+    download_rootfs()
+        
     application = Application.builder().token(TOKEN).build()
 
-    # User Command (just one command needed to open panel)
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
-    
-    # Button Handler
     application.add_handler(CallbackQueryHandler(button_handler))
     
-    # Background jobs
     job_queue = application.job_queue
     job_queue.run_repeating(sync_vps_statuses, interval=300, first=10)
     
-    logger.info("Telegram Bot started with interactive panel.")
+    logger.info("Telegram Bot (PRoot Edition) started.")
     application.run_polling()
 
 if __name__ == '__main__':
