@@ -658,7 +658,19 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         cpu = get_setting('DEFAULT_CPU', DEFAULT_CPU)
         disk = get_setting('DEFAULT_DISK', DEFAULT_DISK)
         add_vps(user_id, vps_id, container_name, "ubuntu", hostname, ssh_line, ram=ram, cpu=cpu, disk=disk)
-        text = f"✅ <b>VPS Instance Created (PRoot)</b>\nOS: Ubuntu 22.04\nRAM: {ram} | CPU: {cpu} | Disk: {disk}\n<code>{ssh_line}</code>"
+        text = (
+            "✅ <b>Your Premium VPS is Ready!</b> 🎉\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🖥️ <b>Server Specifications:</b>\n"
+            f"• <b>OS:</b> Ubuntu 22.04 LTS\n"
+            f"• <b>RAM:</b> {ram} RAM\n"
+            f"• <b>CPU:</b> {cpu} Cores\n"
+            f"• <b>Storage:</b> {disk} Disk\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🔑 <b>SSH Access Command:</b>\n"
+            f"<code>{ssh_line}</code>\n\n"
+            "<i>(Copy the above command and paste it in Termux or any SSH client to connect)</i>"
+        )
         try:
             await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
             await msg.edit_text("✅ VPS created! Check your DMs for SSH details.") if not is_message else await msg.edit_text("✅ VPS created! Check your DMs for SSH details.")
