@@ -493,10 +493,10 @@ async def capture_ssh_session_line(process):
 
 def get_main_menu_keyboard():
     return ReplyKeyboardMarkup([
-        [KeyboardButton("🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦"), KeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦")],
-        [KeyboardButton("👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲"), KeyboardButton("🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱")],
-        [KeyboardButton("🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀"), KeyboardButton("🛍️ 𝗕𝘂𝘆 𝗩𝗣𝗦")],
-        [KeyboardButton("❓ 𝗛𝗲𝗹𝗽")]
+        [KeyboardButton("🚀 ᴅᴇᴘʟᴏʏ ᴠᴘꜱ"), KeyboardButton("🖥 ᴍʏ ᴠᴘꜱ")],
+        [KeyboardButton("👤 ᴍʏ ᴘʀᴏꜰɪʟᴇ"), KeyboardButton("🏆 ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ")],
+        [KeyboardButton("🎁 ʀᴇᴡᴀʀᴅꜱ"), KeyboardButton("🛍️ ʙᴜʏ ᴠᴘꜱ")],
+        [KeyboardButton("❓ ʜᴇʟᴘ")]
     ], resize_keyboard=True)
 
 async def check_force_join(user_id, context: ContextTypes.DEFAULT_TYPE):
@@ -724,9 +724,9 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
 
     query = FakeQuery(update.message, update.effective_user)
 
-    if text == "🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦":
+    if text == "🚀 ᴅᴇᴘʟᴏʏ ᴠᴘꜱ":
         await handle_create_vps(update, context, "ubuntu", user_id, username)
-    elif text == "🖥 𝗠𝘆 𝗩𝗣𝗦":
+    elif text == "🖥 ᴍʏ ᴠᴘꜱ":
         vps_list = get_user_vps(user_id)
         if not vps_list:
             await update.message.reply_text("❌ <b>ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ.</b>", parse_mode=ParseMode.HTML)
@@ -740,7 +740,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         
         await update.message.reply_text("🖥 <b>ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ:</b>\nꜱᴇʟᴇᴄᴛ ᴏɴᴇ ᴛᴏ ᴍᴀɴᴀɢᴇ:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
-    elif text == "👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲":
+    elif text == "👤 ᴍʏ ᴘʀᴏꜰɪʟᴇ":
         created_at = get_user_created_at(user_id)
         total_invites = get_invite_count(user_id)
         spent = get_spent_invites(user_id)
@@ -760,7 +760,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         )
         await update.message.reply_text(profile_text, parse_mode=ParseMode.HTML)
         
-    elif text == "🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱":
+    elif text == "🏆 ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ":
         leaders = get_leaderboard()
         if not leaders:
             await update.message.reply_text("🏆 No one is on the leaderboard yet!")
@@ -773,7 +773,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         
         await update.message.reply_text(board, parse_mode=ParseMode.HTML)
         
-    elif text == "🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀":
+    elif text == "🎁 ʀᴇᴡᴀʀᴅꜱ":
         total_invites = get_invite_count(user_id)
         spent = get_spent_invites(user_id)
         available = total_invites - spent
@@ -789,21 +789,21 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         
         vps_list = get_user_vps(user_id)
         if not vps_list:
-            await update.message.reply_text("❌ You need to Deploy a VPS first before upgrading.")
+            await update.message.reply_text("❌ <b>ʏᴏᴜ ɴᴇᴇᴅ ᴛᴏ ᴅᴇᴘʟᴏʏ ᴀ ᴠᴘꜱ ꜰɪʀꜱᴛ ʙᴇꜰᴏʀᴇ ᴜᴘɢʀᴀᴅɪɴɢ.</b>", parse_mode=ParseMode.HTML)
             return
             
         keyboard = []
         for v in vps_list[:10]:
             if v['upgraded'] == 0:
-                keyboard.append([InlineKeyboardButton(f"Upgrade {v['container_name']}", callback_data=f"upgrade_{v['container_id']}")])
+                keyboard.append([InlineKeyboardButton(f"ᴜᴘɢʀᴀᴅᴇ {v['container_name']}", callback_data=f"upgrade_{v['container_id']}")])
         
         if not keyboard:
-            await update.message.reply_text("✅ All your VPS instances are already upgraded!")
+            await update.message.reply_text("✅ <b>ᴀʟʟ ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ ᴀʀᴇ ᴀʟʀᴇᴀᴅʏ ᴜᴘɢʀᴀᴅᴇᴅ!</b>", parse_mode=ParseMode.HTML)
             return
             
         await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
-    elif text == "🛍️ 𝗕𝘂𝘆 𝗩𝗣𝗦":
+    elif text == "🛍️ ʙᴜʏ ᴠᴘꜱ":
         buy_text = (
             "🛍️ <b>ʙᴜʏ ᴘʀᴇᴍɪᴜᴍ ᴠᴘꜱ</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
@@ -814,7 +814,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         )
         await update.message.reply_text(buy_text, parse_mode=ParseMode.HTML)
         
-    elif text == "❓ 𝗛𝗲𝗹𝗽":
+    elif text == "❓ ʜᴇʟᴘ":
         help_text = (
             "🤖 <b>ᴠᴘꜱ ʙᴏᴛ ꜱᴜᴘᴘᴏʀᴛ:</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
@@ -848,16 +848,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "list_vps":
         vps_list = get_user_vps(user_id)
         if not vps_list:
-            keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]
-            await query.message.edit_text("❌ You have no VPS instances.", reply_markup=InlineKeyboardMarkup(keyboard))
+            keyboard = [[InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="main_menu")]]
+            await query.message.edit_text("❌ <b>ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ.</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
             return
         
         keyboard = []
         for v in vps_list[:10]:
             status_emoji = "🟢" if check_proot_status(v['container_id']) == "running" else "🔴"
-            keyboard.append([InlineKeyboardButton(f"{status_emoji} {v['container_name']}", callback_data=f"manage_{v['container_id']}")])
+            upgraded = "💎 " if v['upgraded'] == 1 else ""
+            keyboard.append([InlineKeyboardButton(f"{upgraded}{status_emoji} {v['container_name']}", callback_data=f"manage_{v['container_id']}")])
         
-        keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")])
+        keyboard.append([InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɪɴ ᴍᴇɴᴜ", callback_data="main_menu")])
         await query.message.edit_text("🖥 <b>Your VPS Instances:</b>\nSelect one to manage:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data.startswith("manage_"):
@@ -882,12 +883,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response += f"ᴇxᴘɪʀᴇꜱ ᴀᴛ: {vps['expires_at']}\n"
         
         keyboard = [
-            [InlineKeyboardButton("▶️ Start", callback_data=f"action_start_{vps_id}"),
-             InlineKeyboardButton("⏹ Stop", callback_data=f"action_stop_{vps_id}")],
-            [InlineKeyboardButton("🔄 Restart", callback_data=f"action_restart_{vps_id}"),
-             InlineKeyboardButton("🔑 Gen SSH", callback_data=f"action_genssh_{vps_id}")],
-            [InlineKeyboardButton("❌ Delete", callback_data=f"action_delete_{vps_id}")],
-            [InlineKeyboardButton("🔙 Back to List", callback_data="list_vps")]
+            [InlineKeyboardButton("▶️ ꜱᴛᴀʀᴛ", callback_data=f"action_start_{vps_id}"),
+             InlineKeyboardButton("⏹ ꜱᴛᴏᴘ", callback_data=f"action_stop_{vps_id}")],
+            [InlineKeyboardButton("🔄 ʀᴇꜱᴛᴀʀᴛ", callback_data=f"action_restart_{vps_id}"),
+             InlineKeyboardButton("🔑 ɢᴇɴ ꜱꜱʜ", callback_data=f"action_genssh_{vps_id}")],
+            [InlineKeyboardButton("❌ ᴅᴇʟᴇᴛᴇ", callback_data=f"action_delete_{vps_id}")],
+            [InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʟɪꜱᴛ", callback_data="list_vps")]
         ]
         await query.message.edit_text(response, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
