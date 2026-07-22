@@ -111,10 +111,12 @@ async def capture_ssh_session_line(proc):
                         break
             if ssh_line:
                 break
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, TimeoutError):
             continue
         except Exception as e:
-            print(f"Error capturing tmate output: {e}")
+            import traceback
+            print(f"Error capturing tmate output: {repr(e)}")
+            traceback.print_exc()
             break
     return ssh_line
 
