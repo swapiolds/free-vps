@@ -261,13 +261,49 @@ async def async_extract_rootfs(vps_id):
                 "cpu cores\t: 2\n"
             )
             
+        # Spoof Hostname to SwapiHost
+        with open(os.path.join(target_dir, "etc", "hostname"), "w") as f:
+            f.write("SwapiHost\n")
+        with open(os.path.join(target_dir, "etc", "hosts"), "w") as f:
+            f.write("127.0.0.1 localhost\n127.0.1.1 SwapiHost\n")
+            
+        fake_kernel_hostname = os.path.join(target_dir, ".fake_hostname")
+        with open(fake_kernel_hostname, "w") as f:
+            f.write("SwapiHost\n")
+            
+        # Inject custom bash prompt to fake the hostname display
+        bashrc = os.path.join(target_dir, "root", ".bashrc")
+        if os.path.exists(bashrc):
+            with open(bashrc, "a") as f:
+                f.write("\nexport HOSTNAME=SwapiHost\n")
+                f.write("PS1='\\[\\e[32m\\]root@SwapiHost\\[\\e[m\\]:\\[\\e[34m\\]\\w\\[\\e[m\\]\\$ '\n")
+        else:
+            os.makedirs(os.path.join(target_dir, "root"), exist_ok=True)
+            with open(bashrc, "w") as f:
+                f.write("export HOSTNAME=SwapiHost\n")
+                f.write("PS1='\\[\\e[32m\\]root@SwapiHost\\[\\e[m\\]:\\[\\e[34m\\]\\w\\[\\e[m\\]\\$ '\n")
+                
+        # Inject wrapper scripts for hostname and uname
+        bin_dir = os.path.join(target_dir, "usr", "local", "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        
+        hostname_bin = os.path.join(bin_dir, "hostname")
+        with open(hostname_bin, "w") as f:
+            f.write("#!/bin/sh\necho SwapiHost\n")
+        os.chmod(hostname_bin, 0o755)
+        
+        uname_bin = os.path.join(bin_dir, "uname")
+        with open(uname_bin, "w") as f:
+            f.write("#!/bin/bash\nif [ \"$1\" = \"-n\" ]; then\n    echo \"SwapiHost\"\nelse\n    /bin/uname \"$@\"\nfi\n")
+        os.chmod(uname_bin, 0o755)
+            
         logger.info(f"RootFS ready for {vps_id}")
     return target_dir
 
 async def async_proot_start(vps_id):
     target_dir = os.path.join(VPS_DATA_DIR, vps_id)
     # Install tmate and start it
-    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b /sys -w /root /bin/bash -c 'apt-get update >/dev/null && apt-get install -y tmate curl wget sudo openssh-client >/dev/null && tmate -F'"
+    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b {target_dir}/.fake_hostname:/proc/sys/kernel/hostname -b /sys -w /root /bin/bash -c 'apt-get update >/dev/null && apt-get install -y tmate curl wget sudo openssh-client >/dev/null && tmate -F'"
     proc = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
