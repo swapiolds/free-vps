@@ -110,11 +110,37 @@ async def capture_ssh_session_line(proc):
         print(f"Error capturing tmate output: {e}")
     return ssh_line
 
+def get_hardware_info():
+    import shutil
+    try: cpu = str(os.cpu_count()) + " Cores"
+    except: cpu = "Unknown"
+    
+    try:
+        total_disk = shutil.disk_usage("/").total
+        disk = str(round(total_disk / (1024**3))) + " GB"
+    except: disk = "Unknown"
+    
+    ram = "Unknown"
+    try:
+        with open('/proc/meminfo', 'r') as f:
+            for line in f:
+                if "MemTotal" in line:
+                    kb = int(line.split()[1])
+                    gb = max(1, round(kb / (1024**2)))
+                    ram = str(gb) + " GB"
+                    break
+    except: pass
+    
+    return {"ram": ram, "cpu": cpu, "disk": disk}
+
 async def register_node(master_url):
     node_name = os.uname().nodename + "-" + str(uuid.uuid4())[:4]
+    hw = get_hardware_info()
+    payload = {'name': node_name, 'ram': hw['ram'], 'cpu': hw['cpu'], 'disk': hw['disk']}
+    
     async with ClientSession() as session:
         try:
-            async with session.post(f"{master_url}/register", json={'name': node_name}) as resp:
+            async with session.post(f"{master_url}/register", json=payload) as resp:
                 data = await resp.json()
                 print(f"Registered as Node ID: {data['node_id']}")
                 return data['node_id']

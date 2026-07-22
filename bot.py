@@ -19,7 +19,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKe
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
-ADMIN_SET_LIMIT, ADMIN_SET_RAM, ADMIN_SET_CPU, ADMIN_SET_DISK, ADMIN_SET_BANNER, ADMIN_ADD_FJ, ADMIN_SET_EXPIRY = range(7)
+ADMIN_SET_LIMIT, ADMIN_SET_RAM, ADMIN_SET_CPU, ADMIN_SET_DISK, ADMIN_SET_BANNER, ADMIN_ADD_FJ, ADMIN_SET_EXPIRY, ADMIN_SET_NODE_LIMIT = range(8)
 
 # Load environment variables
 load_dotenv()
@@ -159,6 +159,17 @@ def init_db():
         )
     ''')
     
+    cursor.execute("PRAGMA table_info(nodes)")
+    node_columns = [col[1] for col in cursor.fetchall()]
+    if 'ram' not in node_columns:
+        cursor.execute("ALTER TABLE nodes ADD COLUMN ram TEXT DEFAULT 'Unknown'")
+    if 'cpu' not in node_columns:
+        cursor.execute("ALTER TABLE nodes ADD COLUMN cpu TEXT DEFAULT 'Unknown'")
+    if 'disk' not in node_columns:
+        cursor.execute("ALTER TABLE nodes ADD COLUMN disk TEXT DEFAULT 'Unknown'")
+    if 'max_vps' not in node_columns:
+        cursor.execute("ALTER TABLE nodes ADD COLUMN max_vps INTEGER DEFAULT 5")
+        
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS jobs (
             job_id TEXT PRIMARY KEY,
@@ -933,49 +944,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.edit_text("❌ VPS not found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="list_vps")]]))
             return
             
-        if action in ["start", "stop", "restart"]:
-            await query.message.edit_text(f"⏳ <b>ᴘʀᴏᴄᴇꜱꜱɪɴɢ '{action.upper()}' ᴀᴄᴛɪᴏɴ...</b>", parse_mode=ParseMode.HTML)
-            if action == "start": 
-                proc = await async_proot_start(vps_id)
-                success = True
-                ssh_line = await capture_ssh_session_line(proc)
-                if ssh_line:
-                    update_vps_ssh(vps_id, ssh_line)
-                    try:
-                        ssh_msg = (
-                            "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ!</b> 🎉\n"
-                            "━━━━━━━━━━━━━━━━━━━━\n"
-                            "🔑 <b>ꜱꜱʜ ᴀᴄᴄᴇꜱꜱ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
-                            f"<code>{ssh_line}</code>\n"
-                            "━━━━━━━━━━━━━━━━━━━━\n"
-                            "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
-                        )
-                        await context.bot.send_message(chat_id=user_id, text=ssh_msg, parse_mode=ParseMode.HTML)
-                    except: pass
-            elif action == "stop": 
-                success = await async_proot_stop(vps_id)
-            elif action == "restart": 
-                await async_proot_stop(vps_id)
-                proc = await async_proot_start(vps_id)
-                success = True
-                ssh_line = await capture_ssh_session_line(proc)
-                if ssh_line:
-                    update_vps_ssh(vps_id, ssh_line)
+        if action in ["start", "stop", "restart", "delete"]:
+            await query.message.edit_text(f"⏳ <b>ǫᴜᴇᴜɪɴɢ '{action.upper()}' ᴀᴄᴛɪᴏɴ...</b>", parse_mode=ParseMode.HTML)
             
-            if success:
-                update_vps_status(vps_id, "running" if action in ["start", "restart"] else "stopped")
+            job_id = str(uuid.uuid4())
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, ?, ?)", (job_id, vps_id, action, vps['node_id']))
+            conn.commit()
+            conn.close()
             
-            keyboard = [[InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴠᴘꜱ", callback_data=f"manage_{vps_id}")]]
-            text = f"✅ <b>ᴀᴄᴛɪᴏɴ '{action.upper()}' ᴄᴏᴍᴘʟᴇᴛᴇᴅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ.</b>" if success else f"❌ <b>ᴀᴄᴛɪᴏɴ '{action.upper()}' ꜰᴀɪʟᴇᴅ.</b>"
+            if action == "delete":
+                keyboard = [[InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʟɪꜱᴛ", callback_data="list_vps")]]
+                text = f"✅ <b>ᴀᴄᴛɪᴏɴ '{action.upper()}' ʜᴀꜱ ʙᴇᴇɴ ǫᴜᴇᴜᴇᴅ. ᴠᴘꜱ ᴡɪʟʟ ʙᴇ ʀᴇᴍᴏᴠᴇᴅ.</b>"
+            else:
+                keyboard = [[InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴠᴘꜱ", callback_data=f"manage_{vps_id}")]]
+                text = f"✅ <b>ᴀᴄᴛɪᴏɴ '{action.upper()}' ʜᴀꜱ ʙᴇᴇɴ ǫᴜᴇᴜᴇᴅ ᴛᴏ ᴀ ᴡᴏʀᴋᴇʀ ɴᴏᴅᴇ.</b>"
             await query.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
-
-        elif action == "delete":
-            await query.message.edit_text("⏳ <b>ʀᴇᴍᴏᴠɪɴɢ ᴠᴘꜱ...</b>", parse_mode=ParseMode.HTML)
-            await async_proot_stop(vps_id)
-            await async_proot_rm(vps_id)
-            delete_vps(vps_id)
-            keyboard = [[InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʟɪꜱᴛ", callback_data="list_vps")]]
-            await query.message.edit_text("✅ <b>ᴠᴘꜱ ʀᴇᴍᴏᴠᴇᴅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ.</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
             
         elif action == "genssh":
             await query.message.edit_text("⏳ <b>ɢᴇɴᴇʀᴀᴛɪɴɢ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ...</b>", parse_mode=ParseMode.HTML)
@@ -1006,6 +991,7 @@ def get_admin_kb():
         [InlineKeyboardButton("💻 Set Default RAM", callback_data="admin_set_ram"),
          InlineKeyboardButton("💻 Set Default CPU", callback_data="admin_set_cpu")],
         [InlineKeyboardButton("💾 Set Default Disk", callback_data="admin_set_disk")],
+        [InlineKeyboardButton("🖥️ Manage Nodes", callback_data="admin_manage_nodes")],
         [InlineKeyboardButton("➕ Add Force Join", callback_data="admin_add_fj"),
          InlineKeyboardButton("📁 Manage FJ", callback_data="admin_manage_fj")],
         [InlineKeyboardButton("🖼️ Set Banner Image", callback_data="admin_set_banner")],
@@ -1083,6 +1069,61 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(f"✅ Removed chat `{chat_id}`.", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="admin_manage_fj")]]))
         return ConversationHandler.END
 
+    elif data == "admin_manage_nodes":
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT node_id, name, status FROM nodes ORDER BY node_id DESC LIMIT 20")
+        nodes = cursor.fetchall()
+        conn.close()
+        
+        if not nodes:
+            await query.message.edit_text("❌ No Worker Nodes connected.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="admin_back")]]))
+            return ConversationHandler.END
+            
+        buttons = []
+        for n in nodes:
+            emoji = "🟢" if n['status'] == "active" else "🔴"
+            buttons.append([InlineKeyboardButton(f"{emoji} {n['name']} (ID:{n['node_id']})", callback_data=f"admin_node_{n['node_id']}")])
+        buttons.append([InlineKeyboardButton("🔙 Back", callback_data="admin_back")])
+        await query.message.edit_text("🖥 **Worker Nodes Management**\nSelect a node to view stats and manage limits:", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(buttons))
+        return ConversationHandler.END
+        
+    elif data.startswith("admin_node_"):
+        node_id = int(data.split("_")[2])
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM nodes WHERE node_id = ?", (node_id,))
+        node = cursor.fetchone()
+        cursor.execute("SELECT COUNT(*) FROM vps WHERE node_id = ?", (node_id,))
+        vps_count = cursor.fetchone()[0]
+        conn.close()
+        
+        if not node:
+            await query.message.edit_text("❌ Node not found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="admin_manage_nodes")]]))
+            return ConversationHandler.END
+            
+        text = f"🖥 <b>Node:</b> {node['name']}\n"
+        text += f"━━━━━━━━━━━━━━━━━━━━\n"
+        text += f"<b>Status:</b> {node['status'].upper()}\n"
+        text += f"<b>RAM:</b> {node.get('ram', 'Unknown')}\n"
+        text += f"<b>CPU:</b> {node.get('cpu', 'Unknown')}\n"
+        text += f"<b>Disk:</b> {node.get('disk', 'Unknown')}\n"
+        text += f"<b>VPS Hosted:</b> {vps_count} / {node.get('max_vps', 5)}\n"
+        text += f"<b>Last Ping:</b> {node['last_ping']}\n"
+        
+        buttons = [
+            [InlineKeyboardButton("📊 Set VPS Limit", callback_data=f"admin_set_node_limit_{node_id}")],
+            [InlineKeyboardButton("🔙 Back to Nodes", callback_data="admin_manage_nodes")]
+        ]
+        await query.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
+        return ConversationHandler.END
+        
+    elif data.startswith("admin_set_node_limit_"):
+        node_id = int(data.split("_")[4])
+        context.user_data['edit_node_id'] = node_id
+        await query.message.edit_text(f"Send the new maximum VPS limit for Node {node_id} (Number):")
+        return ADMIN_SET_NODE_LIMIT
+
     return ConversationHandler.END
 
 async def admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE, state: int, key: str, success_msg: str):
@@ -1101,6 +1142,20 @@ async def set_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await admin_input(update, context, ADMIN_SET_CPU, 'DEFAULT_CPU', "Default CPU updated to")
 async def set_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await admin_input(update, context, ADMIN_SET_DISK, 'DEFAULT_DISK', "Default Disk updated to")
+
+async def set_node_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    node_id = context.user_data.get('edit_node_id')
+    try:
+        limit = int(update.message.text)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE nodes SET max_vps = ? WHERE node_id = ?", (limit, node_id))
+        conn.commit()
+        conn.close()
+        await update.message.reply_text(f"✅ Node {node_id} maximum VPS limit updated to {limit}.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Nodes", callback_data="admin_manage_nodes")]]))
+    except ValueError:
+        await update.message.reply_text("❌ Please enter a valid number.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Nodes", callback_data="admin_manage_nodes")]]))
+    return ConversationHandler.END
 
 async def set_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_id = update.message.photo[-1].file_id
@@ -1174,10 +1229,13 @@ async def sync_vps_statuses(context: ContextTypes.DEFAULT_TYPE):
 async def api_register(request):
     data = await request.json()
     name = data.get('name', 'Unknown Node')
+    ram = data.get('ram', 'Unknown')
+    cpu = data.get('cpu', 'Unknown')
+    disk = data.get('disk', 'Unknown')
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO nodes (name, status, last_ping) VALUES (?, 'active', CURRENT_TIMESTAMP)", (name,))
+    cursor.execute("INSERT INTO nodes (name, status, last_ping, ram, cpu, disk) VALUES (?, 'active', CURRENT_TIMESTAMP, ?, ?, ?)", (name, ram, cpu, disk))
     node_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -1193,9 +1251,23 @@ async def api_get_jobs(request):
     cursor = conn.cursor()
     cursor.execute("UPDATE nodes SET last_ping = CURRENT_TIMESTAMP WHERE node_id = ?", (node_id,))
     
-    # Grab the oldest pending job
-    cursor.execute("SELECT * FROM jobs WHERE status = 'pending' AND (node_id = ? OR node_id IS NULL) ORDER BY created_at ASC LIMIT 1", (node_id,))
+    # Check node capacity
+    cursor.execute("SELECT COUNT(*) FROM vps WHERE node_id = ?", (node_id,))
+    vps_count = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT max_vps FROM nodes WHERE node_id = ?", (node_id,))
+    node_data = cursor.fetchone()
+    max_vps = node_data[0] if node_data else 5
+    
+    # Fetch job logic:
+    # 1. First, always try to get a job specifically assigned to this node (like start, stop, restart for its own VPSs)
+    cursor.execute("SELECT * FROM jobs WHERE status = 'pending' AND node_id = ? ORDER BY created_at ASC LIMIT 1", (node_id,))
     job = cursor.fetchone()
+    
+    # 2. If no specific job, and we have capacity, look for a new unassigned 'create' job
+    if not job and vps_count < max_vps:
+        cursor.execute("SELECT * FROM jobs WHERE status = 'pending' AND action = 'create' AND (node_id IS NULL OR node_id = ?) ORDER BY created_at ASC LIMIT 1", (node_id,))
+        job = cursor.fetchone()
     
     if job:
         cursor.execute("UPDATE jobs SET status = 'running', node_id = ? WHERE job_id = ?", (node_id, job['job_id']))
@@ -1295,6 +1367,7 @@ async def monitor_completed_jobs(application: Application):
                     if status == "completed":
                         update_vps_ssh(vps_id, result)
                         update_vps_status(vps_id, "running")
+                        cursor.execute("UPDATE vps SET node_id = ? WHERE container_id = ?", (job['node_id'], vps_id))
                         try:
                             ssh_msg = (
                                 "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ!</b> 🎉\n"
@@ -1343,7 +1416,8 @@ def main():
             ADMIN_SET_CPU: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_cpu)],
             ADMIN_SET_DISK: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_disk)],
             ADMIN_SET_BANNER: [MessageHandler(filters.PHOTO, set_banner)],
-            ADMIN_ADD_FJ: [MessageHandler(filters.FORWARDED, add_fj_chat)]
+            ADMIN_ADD_FJ: [MessageHandler(filters.FORWARDED, add_fj_chat)],
+            ADMIN_SET_NODE_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_node_limit)]
         },
         fallbacks=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
         allow_reentry=True
