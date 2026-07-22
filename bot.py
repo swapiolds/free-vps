@@ -9,8 +9,11 @@ import asyncio
 import sqlite3
 import uuid
 import urllib.request
+import json
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+from aiohttp import web
+from pyngrok import ngrok, conf
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, ConversationHandler, MessageHandler, filters
@@ -26,6 +29,8 @@ TOKEN = os.getenv('TELEGRAM_TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID', 0))
 BOT_STATUS_NAME = os.getenv('BOT_STATUS_NAME', 'UnixNodes')
 WATERMARK = os.getenv('WATERMARK', 'Powered by UnixNodes VPS Bot')
+NGROK_AUTHTOKEN = os.getenv('NGROK_AUTHTOKEN', '')
+NGROK_DOMAIN = os.getenv('NGROK_DOMAIN', '')
 
 # VPS Defaults
 DEFAULT_RAM = os.getenv('DEFAULT_RAM', '2g')
@@ -101,6 +106,8 @@ def init_db():
         cursor.execute("ALTER TABLE vps ADD COLUMN expires_at TIMESTAMP")
     if 'upgraded' not in columns:
         cursor.execute("ALTER TABLE vps ADD COLUMN upgraded INTEGER DEFAULT 0")
+    if 'node_id' not in columns:
+        cursor.execute("ALTER TABLE vps ADD COLUMN node_id INTEGER DEFAULT 1")
     
     cursor.execute("PRAGMA table_info(users)")
     user_columns = [col[1] for col in cursor.fetchall()]
@@ -142,6 +149,33 @@ def init_db():
             user_id INTEGER PRIMARY KEY
         )
     ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS nodes (
+            node_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            status TEXT DEFAULT 'active',
+            last_ping TIMESTAMP
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS jobs (
+            job_id TEXT PRIMARY KEY,
+            vps_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            result TEXT,
+            node_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (node_id) REFERENCES nodes (node_id)
+        )
+    ''')
+    
+    # Ensure there is at least a local node
+    cursor.execute('SELECT 1 FROM nodes WHERE node_id = 1')
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO nodes (node_id, name) VALUES (1, 'Local Node')")
     conn.commit()
     conn.close()
 
@@ -642,7 +676,7 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         text_msg = f"❌ <b>ʏᴏᴜ ɴᴇᴇᴅ ᴀᴛ ʟᴇᴀꜱᴛ 20 ɪɴᴠɪᴛᴇꜱ ᴛᴏ ᴅᴇᴘʟᴏʏ ᴀ ᴠᴘꜱ.</b>\n\n👥 <b>ᴄᴜʀʀᴇɴᴛ ɪɴᴠɪᴛᴇꜱ:</b> {invites}/20"
         await message.reply_text(text_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(text_msg, parse_mode=ParseMode.HTML)
         return
-
+        
     # Strictly 1 VPS per user
     if count_user_vps(user_id) >= 1:
         text_msg = f"❌ <b>ʏᴏᴜ ʜᴀᴠᴇ ʀᴇᴀᴄʜᴇᴅ ᴛʜᴇ ᴍᴀxɪᴍᴜᴍ ʟɪᴍɪᴛ ᴏꜰ 1 ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇ ᴘᴇʀ ᴜꜱᴇʀ.</b>"
@@ -654,65 +688,26 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         text_msg = "❌ <b>ɢʟᴏʙᴀʟ ꜱᴇʀᴠᴇʀ ʟɪᴍɪᴛ ʀᴇᴀᴄʜᴇᴅ. ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.</b>"
         await message.reply_text(text_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(text_msg, parse_mode=ParseMode.HTML)
         return
-
-    init_msg = "⏳ <b>ᴄʀᴇᴀᴛɪɴɢ ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇ...</b>\n[□□□□□□□□□□] 0%"
+        
+    init_msg = "⏳ <b>ᴠᴘꜱ ᴅᴇᴘʟᴏʏᴍᴇɴᴛ ǫᴜᴇᴜᴇᴅ!</b>\n━━━━━━━━━━━━━━━━━━━━\nʏᴏᴜʀ ᴠᴘꜱ ɪꜱ ʙᴇɪɴɢ ᴄʀᴇᴀᴛᴇᴅ ᴏɴ ᴀ ᴡᴏʀᴋᴇʀ ɴᴏᴅᴇ. ᴛʜɪꜱ ᴍᴀʏ ᴛᴀᴋᴇ ᴜᴘ ᴛᴏ 60 ꜱᴇᴄᴏɴᴅꜱ.\n\nʏᴏᴜ ᴡɪʟʟ ʀᴇᴄᴇɪᴠᴇ ᴀ ᴍᴇꜱꜱᴀɢᴇ ᴡɪᴛʜ ʏᴏᴜʀ ꜱꜱʜ ᴄᴏᴍᴍᴀɴᴅ ᴏɴᴄᴇ ɪᴛ ɪꜱ ʀᴇᴀᴅʏ."
     msg = await message.reply_text(init_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(init_msg, parse_mode=ParseMode.HTML)
-    
-    async def animate_loading(target_msg):
-        frames = [
-            "⏳ <b>ᴄʀᴇᴀᴛɪɴɢ ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇ...</b>\n[■□□□□□□□□□] 10%",
-            "⏳ <b>ᴇxᴛʀᴀᴄᴛɪɴɢ ʀᴏᴏᴛꜰꜱ...</b>\n[■■■□□□□□□□] 30%",
-            "⏳ <b>ɪɴꜱᴛᴀʟʟɪɴɢ ᴘᴀᴄᴋᴀɢᴇꜱ...</b>\n[■■■■■□□□□□] 50%",
-            "⏳ <b>ᴄᴏɴꜰɪɢᴜʀɪɴɢ ɴᴇᴛᴡᴏʀᴋ...</b>\n[■■■■■■■□□□] 70%",
-            "⏳ <b>ꜱᴇᴛᴛɪɴɢ ᴜᴘ ꜱꜱʜ ᴀᴄᴄᴇꜱꜱ...</b>\n[■■■■■■■■■□] 90%",
-            "⏳ <b>ꜰɪɴᴀʟɪᴢɪɴɢ ꜱᴇᴛᴜᴘ...</b>\n[■■■■■■■■■■] 99%"
-        ]
-        try:
-            for frame in frames:
-                await asyncio.sleep(4)
-                await target_msg.edit_text(frame, parse_mode=ParseMode.HTML)
-            while True:
-                await asyncio.sleep(5)
-        except asyncio.CancelledError:
-            pass
-        except Exception:
-            pass
-            
-    loading_task = asyncio.create_task(animate_loading(msg))
     
     vps_id = str(uuid.uuid4())[:8]
     hostname = f"{VPS_HOSTNAME}-{user_id}"
     container_name = f"vps-{user_id}-{vps_id}"
     
-    try:
-        await async_extract_rootfs(vps_id)
-        proc = await async_proot_start(vps_id)
-        ssh_line = await capture_ssh_session_line(proc)
-    finally:
-        loading_task.cancel()
-        
-    if ssh_line:
-        ram = get_setting('DEFAULT_RAM', DEFAULT_RAM)
-        cpu = get_setting('DEFAULT_CPU', DEFAULT_CPU)
-        disk = get_setting('DEFAULT_DISK', DEFAULT_DISK)
-        add_vps(user_id, vps_id, container_name, "ubuntu", hostname, ssh_line, ram=ram, cpu=cpu, disk=disk)
-        text = (
-            "✅ <b>ʏᴏᴜʀ ᴘʀᴇᴍɪᴜᴍ ᴠᴘꜱ ɪꜱ ʀᴇᴀᴅʏ!</b> 🎉\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "🖥️ <b>ꜱᴇʀᴠᴇʀ ꜱᴘᴇᴄɪꜰɪᴄᴀᴛɪᴏɴꜱ:</b>\n"
-            f"• <b>ᴏꜱ:</b> ᴜʙᴜɴᴛᴜ 22.04 ʟᴛꜱ\n"
-            f"• <b>ʀᴀᴍ:</b> {ram} ʀᴀᴍ\n"
-            f"• <b>ᴄᴘᴜ:</b> {cpu} ᴄᴏʀᴇꜱ\n"
-            f"• <b>ꜱᴛᴏʀᴀɢᴇ:</b> {disk} ᴅɪꜱᴋ\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "🔑 <b>ꜱꜱʜ ᴀᴄᴄᴇꜱꜱ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
-            f"<code>{ssh_line}</code>\n\n"
-            "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
-        )
-        await msg.edit_text(text, parse_mode=ParseMode.HTML)
-    else:
-        await msg.edit_text("❌ <b>ᴄʀᴇᴀᴛɪᴏɴ ꜰᴀɪʟᴇᴅ:</b> ᴜɴᴀʙʟᴇ ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ.", parse_mode=ParseMode.HTML)
-        await async_proot_stop(vps_id)
+    ram = get_setting('DEFAULT_RAM', DEFAULT_RAM)
+    cpu = get_setting('DEFAULT_CPU', DEFAULT_CPU)
+    disk = get_setting('DEFAULT_DISK', DEFAULT_DISK)
+    
+    add_vps(user_id, vps_id, container_name, "ubuntu", hostname, "Pending...", ram=ram, cpu=cpu, disk=disk)
+    
+    job_id = str(uuid.uuid4())
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO jobs (job_id, vps_id, action) VALUES (?, ?, 'create')", (job_id, vps_id))
+    conn.commit()
+    conn.close()
 
 
 async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1148,6 +1143,157 @@ async def sync_vps_statuses(context: ContextTypes.DEFAULT_TYPE):
         if out != stat:
             update_vps_status(cid, out)
 
+# ----------------- Master API -----------------
+
+async def api_register(request):
+    data = await request.json()
+    name = data.get('name', 'Unknown Node')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO nodes (name, status, last_ping) VALUES (?, 'active', CURRENT_TIMESTAMP)", (name,))
+    node_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return web.json_response({'status': 'ok', 'node_id': node_id})
+
+async def api_get_jobs(request):
+    node_id = request.query.get('node_id')
+    if not node_id:
+        return web.json_response({'error': 'Missing node_id'}, status=400)
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE nodes SET last_ping = CURRENT_TIMESTAMP WHERE node_id = ?", (node_id,))
+    
+    # Grab the oldest pending job
+    cursor.execute("SELECT * FROM jobs WHERE status = 'pending' AND (node_id = ? OR node_id IS NULL) ORDER BY created_at ASC LIMIT 1", (node_id,))
+    job = cursor.fetchone()
+    
+    if job:
+        cursor.execute("UPDATE jobs SET status = 'running', node_id = ? WHERE job_id = ?", (node_id, job['job_id']))
+        conn.commit()
+        conn.close()
+        return web.json_response({'job': dict(job)})
+    
+    conn.commit()
+    conn.close()
+    return web.json_response({'job': None})
+
+async def api_post_result(request):
+    data = await request.json()
+    job_id = data.get('job_id')
+    status = data.get('status')
+    result = data.get('result', '')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE jobs SET status = ?, result = ? WHERE job_id = ?", (status, result, job_id))
+    conn.commit()
+    conn.close()
+    
+    return web.json_response({'status': 'ok'})
+
+async def start_master_api(application: Application):
+    webapp = web.Application()
+    webapp.add_routes([
+        web.post('/register', api_register),
+        web.get('/jobs', api_get_jobs),
+        web.post('/jobs/result', api_post_result)
+    ])
+    runner = web.AppRunner(webapp)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 5000)
+    await site.start()
+    logger.info("Master API Server started on port 5000")
+    
+    if NGROK_AUTHTOKEN and NGROK_DOMAIN:
+        try:
+            conf.get_default().auth_token = NGROK_AUTHTOKEN
+            url = ngrok.connect(5000, domain=NGROK_DOMAIN).public_url
+            logger.info(f"Ngrok tunnel established at: {url}")
+        except Exception as e:
+            logger.error(f"Failed to start Ngrok tunnel: {e}")
+
+async def monitor_completed_jobs(application: Application):
+    while True:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM jobs WHERE status IN ('completed', 'failed')")
+            finished_jobs = cursor.fetchall()
+            
+            for job in finished_jobs:
+                job_id = job['job_id']
+                vps_id = job['vps_id']
+                action = job['action']
+                status = job['status']
+                result = job['result']
+                
+                cursor.execute("SELECT user_id FROM vps WHERE container_id = ?", (vps_id,))
+                vps_row = cursor.fetchone()
+                if not vps_row:
+                    cursor.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+                    continue
+                user_id = vps_row['user_id']
+                
+                if action == "start":
+                    if status == "completed":
+                        update_vps_ssh(vps_id, result)
+                        update_vps_status(vps_id, "running")
+                        try:
+                            ssh_msg = (
+                                "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ!</b> 🎉\n"
+                                "━━━━━━━━━━━━━━━━━━━━\n"
+                                "🔑 <b>ꜱꜱʜ ᴀᴄᴄᴇꜱꜱ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
+                                f"<code>{result}</code>\n"
+                                "━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
+                            )
+                            await application.bot.send_message(chat_id=user_id, text=ssh_msg, parse_mode=ParseMode.HTML)
+                        except: pass
+                    else:
+                        try: await application.bot.send_message(chat_id=user_id, text=f"❌ Failed to start VPS: {result}")
+                        except: pass
+                        
+                elif action == "stop":
+                    update_vps_status(vps_id, "stopped")
+                elif action == "delete":
+                    delete_vps(vps_id)
+                elif action == "restart":
+                    if status == "completed":
+                        update_vps_ssh(vps_id, result)
+                        update_vps_status(vps_id, "running")
+                elif action == "create":
+                    if status == "completed":
+                        update_vps_ssh(vps_id, result)
+                        update_vps_status(vps_id, "running")
+                        try:
+                            ssh_msg = (
+                                "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ!</b> 🎉\n"
+                                "━━━━━━━━━━━━━━━━━━━━\n"
+                                "🔑 <b>ꜱꜱʜ ᴀᴄᴄᴇꜱꜱ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
+                                f"<code>{result}</code>\n"
+                                "━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
+                            )
+                            await application.bot.send_message(chat_id=user_id, text=ssh_msg, parse_mode=ParseMode.HTML)
+                        except: pass
+                
+                cursor.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+                
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error monitoring jobs: {e}")
+            
+        await asyncio.sleep(5)
+
+async def post_init(application: Application):
+    await start_master_api(application)
+    asyncio.create_task(monitor_completed_jobs(application))
+
 # ----------------- Main -----------------
 
 def main():
@@ -1155,9 +1301,7 @@ def main():
         logger.error("TELEGRAM_TOKEN is missing from environment variables.")
         sys.exit(1)
         
-    download_rootfs()
-        
-    application = Application.builder().token(TOKEN).build()
+    application = Application.builder().token(TOKEN).post_init(post_init).build()
 
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
