@@ -19,7 +19,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKe
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
-ADMIN_SET_LIMIT, ADMIN_SET_RAM, ADMIN_SET_CPU, ADMIN_SET_DISK, ADMIN_SET_BANNER, ADMIN_ADD_FJ, ADMIN_SET_EXPIRY, ADMIN_SET_NODE_LIMIT = range(8)
+ADMIN_SET_LIMIT, ADMIN_SET_RAM, ADMIN_SET_CPU, ADMIN_SET_DISK, ADMIN_SET_BANNER, ADMIN_ADD_FJ, ADMIN_SET_EXPIRY, ADMIN_SET_NODE_LIMIT, ADMIN_BROADCAST = range(9)
 
 # Load environment variables
 load_dotenv()
@@ -745,6 +745,10 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
     cursor.execute("INSERT INTO jobs (job_id, vps_id, action) VALUES (?, ?, 'create')", (job_id, vps_id))
     conn.commit()
     conn.close()
+    
+    try:
+        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🔔 <b>New VPS Queued!</b>\nUser: {username} ({user_id})\nContainer: {container_name}", parse_mode=ParseMode.HTML)
+    except: pass
 
 
 async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -991,10 +995,12 @@ def get_admin_kb():
         [InlineKeyboardButton("💻 Set Default RAM", callback_data="admin_set_ram"),
          InlineKeyboardButton("💻 Set Default CPU", callback_data="admin_set_cpu")],
         [InlineKeyboardButton("💾 Set Default Disk", callback_data="admin_set_disk")],
-        [InlineKeyboardButton("🖥️ Manage Nodes", callback_data="admin_manage_nodes")],
-        [InlineKeyboardButton("➕ Add Force Join", callback_data="admin_add_fj"),
-         InlineKeyboardButton("📁 Manage FJ", callback_data="admin_manage_fj")],
-        [InlineKeyboardButton("🖼️ Set Banner Image", callback_data="admin_set_banner")],
+        [InlineKeyboardButton("🖥️ Manage Nodes", callback_data="admin_manage_nodes"),
+         InlineKeyboardButton("📊 Bot Status", callback_data="admin_status")],
+        [InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast"),
+         InlineKeyboardButton("➕ Add Force Join", callback_data="admin_add_fj")],
+        [InlineKeyboardButton("📁 Manage FJ", callback_data="admin_manage_fj"),
+         InlineKeyboardButton("🖼️ Set Banner Image", callback_data="admin_set_banner")],
         [InlineKeyboardButton("🔙 Exit Admin", callback_data="admin_exit")]
     ])
 
@@ -1015,6 +1021,31 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == "admin_exit":
         await query.message.edit_text("✅ Exited Admin Panel.")
+        return ConversationHandler.END
+        
+    elif data == "admin_broadcast":
+        await query.message.edit_text("📢 <b>Send the message you want to broadcast (Text, Photo, Video, etc.):</b>", parse_mode=ParseMode.HTML)
+        return ADMIN_BROADCAST
+        
+    elif data == "admin_status":
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM vps")
+        vps = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM vps WHERE status='running'")
+        vps_running = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM nodes WHERE status='active'")
+        nodes = cursor.fetchone()[0]
+        conn.close()
+        
+        text = f"📊 <b>Bot Statistics</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+        text += f"👥 <b>Total Users:</b> {users}\n"
+        text += f"🖥 <b>Total VPS:</b> {vps} ({vps_running} Running)\n"
+        text += f"🌐 <b>Active Worker Nodes:</b> {nodes}\n"
+        
+        await query.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="admin_back")]]))
         return ConversationHandler.END
         
     elif data == "admin_set_limit":
@@ -1193,6 +1224,29 @@ async def add_fj_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     return ConversationHandler.END
 
+async def broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    await msg.reply_text("⏳ <b>Broadcasting message...</b>", parse_mode=ParseMode.HTML)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users")
+    users = cursor.fetchall()
+    conn.close()
+    
+    success = 0
+    failed = 0
+    for u in users:
+        try:
+            await msg.copy(chat_id=u['user_id'])
+            success += 1
+            await asyncio.sleep(0.05)
+        except Exception:
+            failed += 1
+            
+    await msg.reply_text(f"✅ <b>Broadcast Complete!</b>\nSuccess: {success}\nFailed: {failed}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_back")]]), parse_mode=ParseMode.HTML)
+    return ConversationHandler.END
+
 # ----------------- Background Tasks -----------------
 
 async def sync_vps_statuses(context: ContextTypes.DEFAULT_TYPE):
@@ -1239,6 +1293,13 @@ async def api_register(request):
     node_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    
+    try:
+        bot_app = request.app.get('bot_app')
+        if bot_app:
+            asyncio.create_task(bot_app.bot.send_message(chat_id=ADMIN_ID, text=f"🔔 <b>New Worker Node Connected!</b>\nName: {name}\nSpecs: {ram} RAM, {cpu}, {disk}", parse_mode='HTML'))
+    except Exception as e:
+        logger.error(f"Failed to send admin notification: {e}")
     
     return web.json_response({'status': 'ok', 'node_id': node_id})
 
@@ -1295,6 +1356,7 @@ async def api_post_result(request):
 
 async def start_master_api(application: Application):
     webapp = web.Application()
+    webapp['bot_app'] = application
     webapp.add_routes([
         web.post('/register', api_register),
         web.get('/jobs', api_get_jobs),
@@ -1417,7 +1479,8 @@ def main():
             ADMIN_SET_DISK: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_disk)],
             ADMIN_SET_BANNER: [MessageHandler(filters.PHOTO, set_banner)],
             ADMIN_ADD_FJ: [MessageHandler(filters.FORWARDED, add_fj_chat)],
-            ADMIN_SET_NODE_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_node_limit)]
+            ADMIN_SET_NODE_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_node_limit)],
+            ADMIN_BROADCAST: [MessageHandler(filters.ALL & ~filters.COMMAND, broadcast_message)]
         },
         fallbacks=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
         allow_reentry=True
