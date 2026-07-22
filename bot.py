@@ -747,7 +747,14 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
     conn.close()
     
     try:
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🔔 <b>New VPS Queued!</b>\nUser: {username} ({user_id})\nContainer: {container_name}", parse_mode=ParseMode.HTML)
+        msg = (
+            f"🔔 <b>New VPS Queued!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>User:</b> {username} (<code>{user_id}</code>)\n"
+            f"🖥 <b>Container:</b> <code>{container_name}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━"
+        )
+        await context.bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode=ParseMode.HTML)
     except: pass
 
 
@@ -1297,7 +1304,16 @@ async def api_register(request):
     try:
         bot_app = request.app.get('bot_app')
         if bot_app:
-            asyncio.create_task(bot_app.bot.send_message(chat_id=ADMIN_ID, text=f"🔔 <b>New Worker Node Connected!</b>\nName: {name}\nSpecs: {ram} RAM, {cpu}, {disk}", parse_mode='HTML'))
+            msg = (
+                f"🔔 <b>New Worker Node Connected!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🖥 <b>Name:</b> <code>{name}</code>\n"
+                f"⚙️ <b>RAM:</b> {ram}\n"
+                f"⚡️ <b>CPU:</b> {cpu}\n"
+                f"💾 <b>Disk:</b> {disk}\n"
+                f"━━━━━━━━━━━━━━━━━━"
+            )
+            asyncio.create_task(bot_app.bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode='HTML'))
     except Exception as e:
         logger.error(f"Failed to send admin notification: {e}")
     
