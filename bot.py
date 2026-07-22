@@ -216,13 +216,58 @@ async def async_extract_rootfs(vps_id):
         with open(resolv_conf, "w") as f:
             f.write("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
             
+        # Generate fake procfs files to spoof hardware
+        fake_meminfo = os.path.join(target_dir, ".fake_meminfo")
+        with open(fake_meminfo, "w") as f:
+            f.write(
+                "MemTotal:        2048000 kB\n"
+                "MemFree:         1024000 kB\n"
+                "MemAvailable:    1536000 kB\n"
+                "Buffers:           20480 kB\n"
+                "Cached:           307200 kB\n"
+                "SwapCached:            0 kB\n"
+                "Active:           512000 kB\n"
+                "Inactive:         256000 kB\n"
+                "SwapTotal:             0 kB\n"
+                "SwapFree:              0 kB\n"
+            )
+            
+        fake_cpuinfo = os.path.join(target_dir, ".fake_cpuinfo")
+        with open(fake_cpuinfo, "w") as f:
+            f.write(
+                "processor\t: 0\n"
+                "vendor_id\t: GenuineIntel\n"
+                "cpu family\t: 6\n"
+                "model\t\t: 85\n"
+                "model name\t: Intel(R) Xeon(R) CPU (2 Core) @ 2.50GHz\n"
+                "stepping\t: 4\n"
+                "cpu MHz\t\t: 2500.000\n"
+                "cache size\t: 36608 KB\n"
+                "physical id\t: 0\n"
+                "siblings\t: 2\n"
+                "core id\t\t: 0\n"
+                "cpu cores\t: 2\n"
+                "processor\t: 1\n"
+                "vendor_id\t: GenuineIntel\n"
+                "cpu family\t: 6\n"
+                "model\t\t: 85\n"
+                "model name\t: Intel(R) Xeon(R) CPU (2 Core) @ 2.50GHz\n"
+                "stepping\t: 4\n"
+                "cpu MHz\t\t: 2500.000\n"
+                "cache size\t: 36608 KB\n"
+                "physical id\t: 0\n"
+                "siblings\t: 2\n"
+                "core id\t\t: 1\n"
+                "cpu cores\t: 2\n"
+            )
+            
         logger.info(f"RootFS ready for {vps_id}")
     return target_dir
 
 async def async_proot_start(vps_id):
     target_dir = os.path.join(VPS_DATA_DIR, vps_id)
     # Install tmate and start it
-    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b /sys -w /root /bin/bash -c 'apt-get update >/dev/null && apt-get install -y tmate curl wget sudo openssh-client >/dev/null && tmate -F'"
+    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b /sys -w /root /bin/bash -c 'apt-get update >/dev/null && apt-get install -y tmate curl wget sudo openssh-client >/dev/null && tmate -F'"
     proc = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
