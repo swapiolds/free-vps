@@ -724,9 +724,9 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
 
     query = FakeQuery(update.message, update.effective_user)
 
-    if text == "🚀 ᴅᴇᴘʟᴏʏ ᴠᴘꜱ":
+    if text in ["🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦", "🚀 ᴅᴇᴘʟᴏʏ ᴠᴘꜱ"]:
         await handle_create_vps(update, context, "ubuntu", user_id, username)
-    elif text == "🖥 ᴍʏ ᴠᴘꜱ":
+    elif text in ["🖥 𝗠𝘆 𝗩𝗣𝗦", "🖥 ᴍʏ ᴠᴘꜱ"]:
         vps_list = get_user_vps(user_id)
         if not vps_list:
             await update.message.reply_text("❌ <b>ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ.</b>", parse_mode=ParseMode.HTML)
@@ -740,7 +740,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         
         await update.message.reply_text("🖥 <b>ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ:</b>\nꜱᴇʟᴇᴄᴛ ᴏɴᴇ ᴛᴏ ᴍᴀɴᴀɢᴇ:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
-    elif text == "👤 ᴍʏ ᴘʀᴏꜰɪʟᴇ":
+    elif text in ["👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲", "👤 ᴍʏ ᴘʀᴏꜰɪʟᴇ"]:
         created_at = get_user_created_at(user_id)
         total_invites = get_invite_count(user_id)
         spent = get_spent_invites(user_id)
@@ -760,7 +760,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         )
         await update.message.reply_text(profile_text, parse_mode=ParseMode.HTML)
         
-    elif text == "🏆 ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ":
+    elif text in ["🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱", "🏆 ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ"]:
         leaders = get_leaderboard()
         if not leaders:
             await update.message.reply_text("🏆 No one is on the leaderboard yet!")
@@ -773,7 +773,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         
         await update.message.reply_text(board, parse_mode=ParseMode.HTML)
         
-    elif text == "🎁 ʀᴇᴡᴀʀᴅꜱ":
+    elif text in ["🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "🎁 ʀᴇᴡᴀʀᴅꜱ"]:
         total_invites = get_invite_count(user_id)
         spent = get_spent_invites(user_id)
         available = total_invites - spent
@@ -803,7 +803,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
             
         await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         
-    elif text == "🛍️ ʙᴜʏ ᴠᴘꜱ":
+    elif text in ["🛍️ 𝗕𝘂𝘆 𝗩𝗣𝗦", "🛍️ ʙᴜʏ ᴠᴘꜱ"]:
         buy_text = (
             "🛍️ <b>ʙᴜʏ ᴘʀᴇᴍɪᴜᴍ ᴠᴘꜱ</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
@@ -814,7 +814,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         )
         await update.message.reply_text(buy_text, parse_mode=ParseMode.HTML)
         
-    elif text == "❓ ʜᴇʟᴘ":
+    elif text in ["❓ 𝗛𝗲𝗹𝗽", "❓ ʜᴇʟᴘ"]:
         help_text = (
             "🤖 <b>ᴠᴘꜱ ʙᴏᴛ ꜱᴜᴘᴘᴏʀᴛ:</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
