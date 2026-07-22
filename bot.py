@@ -655,6 +655,32 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
 
+async def cmd_nodes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_admin(user_id):
+        return
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Use left join or group by if needed, but since workers just ping /jobs, we might just look at nodes table
+    cursor.execute("SELECT node_id, name, status, last_ping FROM nodes ORDER BY node_id DESC LIMIT 20")
+    nodes = cursor.fetchall()
+    conn.close()
+    
+    if not nodes:
+        await update.message.reply_text("❌ <b>ɴᴏ ᴡᴏʀᴋᴇʀ ɴᴏᴅᴇꜱ ᴄᴏɴɴᴇᴄᴛᴇᴅ.</b>", parse_mode=ParseMode.HTML)
+        return
+        
+    text = "🖥 <b>ᴄᴏɴɴᴇᴄᴛᴇᴅ ᴡᴏʀᴋᴇʀ ɴᴏᴅᴇꜱ:</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+    for n in nodes:
+        status_emoji = "🟢" if n['status'] == "active" else "🔴"
+        last_ping = n['last_ping'] if n['last_ping'] else "Unknown"
+        text += f"{status_emoji} <b>{n['name']}</b>\n"
+        text += f"• <b>ɪᴅ:</b> <code>{n['node_id']}</code>\n"
+        text += f"• <b>ʟᴀꜱᴛ ᴘɪɴɢ:</b> {last_ping}\n\n"
+        
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+
 async def handle_create_vps(update_or_query, context, os_type, user_id, username):
     # Determine if it's a message or callback query
     is_message = hasattr(update_or_query, 'message') and update_or_query.message is not None and not hasattr(update_or_query, 'data')
@@ -1305,6 +1331,7 @@ def main():
 
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
+    application.add_handler(CommandHandler("nodes", cmd_nodes))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_keyboard_buttons))
     
     admin_conv = ConversationHandler(
