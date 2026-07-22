@@ -623,25 +623,26 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         return
 
     if is_banned(user_id):
-        await message.reply_text("❌ You are banned from creating VPS instances.") if is_message else await update_or_query.message.edit_text("❌ You are banned from creating VPS instances.")
+        text_msg = "❌ <b>ʏᴏᴜ ᴀʀᴇ ʙᴀɴɴᴇᴅ ꜰʀᴏᴍ ᴄʀᴇᴀᴛɪɴɢ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ.</b>"
+        await message.reply_text(text_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(text_msg, parse_mode=ParseMode.HTML)
         return
         
     invites = get_invite_count(user_id)
     if invites < 20 and not is_admin(user_id):
-        text_msg = f"❌ You need at least 20 invites to deploy a VPS.\n\n👥 <b>Current Invites:</b> {invites}/20"
+        text_msg = f"❌ <b>ʏᴏᴜ ɴᴇᴇᴅ ᴀᴛ ʟᴇᴀꜱᴛ 20 ɪɴᴠɪᴛᴇꜱ ᴛᴏ ᴅᴇᴘʟᴏʏ ᴀ ᴠᴘꜱ.</b>\n\n👥 <b>ᴄᴜʀʀᴇɴᴛ ɪɴᴠɪᴛᴇꜱ:</b> {invites}/20"
         await message.reply_text(text_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(text_msg, parse_mode=ParseMode.HTML)
         return
 
     # Strictly 1 VPS per user
     if count_user_vps(user_id) >= 1:
-        text_msg = f"❌ You have reached the maximum limit of 1 VPS instance per user."
-        await message.reply_text(text_msg) if is_message else await update_or_query.message.edit_text(text_msg)
+        text_msg = f"❌ <b>ʏᴏᴜ ʜᴀᴠᴇ ʀᴇᴀᴄʜᴇᴅ ᴛʜᴇ ᴍᴀxɪᴍᴜᴍ ʟɪᴍɪᴛ ᴏꜰ 1 ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇ ᴘᴇʀ ᴜꜱᴇʀ.</b>"
+        await message.reply_text(text_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(text_msg, parse_mode=ParseMode.HTML)
         return
         
     total_limit = int(get_setting('TOTAL_SERVER_LIMIT', TOTAL_SERVER_LIMIT))
     if get_total_instances() >= total_limit:
-        text_msg = "❌ Global server limit reached. Please try again later."
-        await message.reply_text(text_msg) if is_message else await update_or_query.message.edit_text(text_msg)
+        text_msg = "❌ <b>ɢʟᴏʙᴀʟ ꜱᴇʀᴠᴇʀ ʟɪᴍɪᴛ ʀᴇᴀᴄʜᴇᴅ. ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.</b>"
+        await message.reply_text(text_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(text_msg, parse_mode=ParseMode.HTML)
         return
 
     init_msg = "⏳ <b>ᴄʀᴇᴀᴛɪɴɢ ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇ...</b>\n[□□□□□□□□□□] 0%"
@@ -728,7 +729,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
     elif text == "🖥 𝗠𝘆 𝗩𝗣𝗦":
         vps_list = get_user_vps(user_id)
         if not vps_list:
-            await update.message.reply_text("❌ You have no VPS instances.")
+            await update.message.reply_text("❌ <b>ʏᴏᴜ ʜᴀᴠᴇ ɴᴏ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇꜱ.</b>", parse_mode=ParseMode.HTML)
             return
         
         keyboard = []
