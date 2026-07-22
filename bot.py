@@ -1403,8 +1403,14 @@ async def api_register(request):
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO nodes (name, status, last_ping, ram, cpu, disk) VALUES (?, 'active', CURRENT_TIMESTAMP, ?, ?, ?)", (name, ram, cpu, disk))
-    node_id = cursor.lastrowid
+    cursor.execute("SELECT node_id FROM nodes WHERE name = ?", (name,))
+    row = cursor.fetchone()
+    if row:
+        node_id = row['node_id']
+        cursor.execute("UPDATE nodes SET status = 'active', last_ping = CURRENT_TIMESTAMP, ram = ?, cpu = ?, disk = ? WHERE node_id = ?", (ram, cpu, disk, node_id))
+    else:
+        cursor.execute("INSERT INTO nodes (name, status, last_ping, ram, cpu, disk) VALUES (?, 'active', CURRENT_TIMESTAMP, ?, ?, ?)", (name, ram, cpu, disk))
+        node_id = cursor.lastrowid
     conn.commit()
     conn.close()
     
