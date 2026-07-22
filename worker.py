@@ -138,7 +138,7 @@ async def register_node(master_url):
     hw = get_hardware_info()
     payload = {'name': node_name, 'ram': hw['ram'], 'cpu': hw['cpu'], 'disk': hw['disk']}
     
-    async with ClientSession() as session:
+    async with ClientSession(headers={'ngrok-skip-browser-warning': '1'}) as session:
         try:
             async with session.post(f"{master_url}/register", json=payload) as resp:
                 data = await resp.json()
@@ -150,7 +150,7 @@ async def register_node(master_url):
 
 async def worker_loop(master_url, node_id):
     print("Worker starting. Listening for jobs...")
-    async with ClientSession() as session:
+    async with ClientSession(headers={'ngrok-skip-browser-warning': '1'}) as session:
         while True:
             try:
                 async with session.get(f"{master_url}/jobs", params={'node_id': node_id}) as resp:
