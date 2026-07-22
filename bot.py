@@ -714,7 +714,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         keyboard = []
         for v in vps_list[:10]:
             status_emoji = "🟢" if check_proot_status(v['container_id']) == "running" else "🔴"
-            upgraded = "💎 " if v.get('upgraded', 0) == 1 else ""
+            upgraded = "💎 " if v['upgraded'] == 1 else ""
             keyboard.append([InlineKeyboardButton(f"{upgraded}{status_emoji} {v['container_name']}", callback_data=f"manage_{v['container_id']}")])
         
         await update.message.reply_text("🖥 <b>Your VPS Instances:</b>\nSelect one to manage:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -773,7 +773,7 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
             
         keyboard = []
         for v in vps_list[:10]:
-            if v.get('upgraded', 0) == 0:
+            if v['upgraded'] == 0:
                 keyboard.append([InlineKeyboardButton(f"Upgrade {v['container_name']}", callback_data=f"upgrade_{v['container_id']}")])
         
         if not keyboard:
@@ -821,8 +821,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "main_menu":
         await cmd_start(update, context)
         
-        await query.message.edit_text(help_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
-        
     elif data.startswith("deploy_"):
         await handle_create_vps(query, context, "ubuntu", user_id, username)
         
@@ -852,14 +850,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = f"ℹ️ <b>VPS: {vps['container_name']}</b>\n"
         response += f"Status: {status}\nID: <code>{vps_id}</code>\n"
         
-        is_upgraded = vps.get('upgraded', 0) == 1
-        spec_text = "8GB RAM | 4 CPU" if is_upgraded else f"{vps.get('ram', '2G')} RAM | {vps.get('cpu', '1')} CPU"
+        is_upgraded = vps['upgraded'] == 1
+        spec_text = "8GB RAM | 4 CPU" if is_upgraded else f"{vps['ram']} RAM | {vps['cpu']} CPU"
         vip_tag = " 💎 [VIP]" if is_upgraded else ""
         
         response += f"OS: Ubuntu 22.04 (PRoot){vip_tag}\n"
         response += f"Specs: {spec_text}\n"
         
-        if vps.get('expires_at'):
+        if vps['expires_at']:
             response += f"Expires At: {vps['expires_at']}\n"
         
         keyboard = [
