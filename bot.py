@@ -12,7 +12,7 @@ import urllib.request
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
@@ -437,11 +437,11 @@ async def capture_ssh_session_line(process):
 # ----------------- UI / Interactive Handlers -----------------
 
 def get_main_menu_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦", callback_data="deploy_ubuntu")],
-        [InlineKeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦 𝗜𝗻𝘀𝘁𝗮𝗻𝗰𝗲𝘀", callback_data="list_vps")],
-        [InlineKeyboardButton("❓ 𝗛𝗲𝗹𝗽", callback_data="help")]
-    ])
+    return ReplyKeyboardMarkup([
+        [KeyboardButton("🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦")],
+        [KeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦 𝗜𝗻𝘀𝘁𝗮𝗻𝗰𝗲𝘀")],
+        [KeyboardButton("❓ 𝗛𝗲𝗹𝗽")]
+    ], resize_keyboard=True)
 
 async def check_force_join(user_id, context: ContextTypes.DEFAULT_TYPE):
     if is_admin(user_id):
@@ -520,12 +520,15 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     invite_link = f"https://t.me/{bot_username}?start={user_id}"
 
     msg = (
-        "👋 𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗨𝗻𝗶𝘅𝗡𝗼𝗱𝗲𝘀 𝗩𝗣𝗦 𝗕𝗼𝘁!\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🚀 𝖣𝖾𝗉𝗅𝗈𝗒 𝖺𝗇𝖽 𝗆𝖺𝗇𝖺𝗀𝖾 𝗒𝗈𝗎𝗋 𝖿𝗋𝖾𝖾 𝖵𝖯𝖲 𝗂𝗇𝗌𝗍𝖺𝗇𝖼𝖾𝗌.\n\n"
+        "👋 ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴜʟᴛɪᴍᴀᴛᴇ ᴠᴘꜱ ʙᴏᴛ!\n\n"
+        "🎬 ɢᴇᴛ Free vps ʙʏ ʀᴇꜰᴇʀʀɪɴɢ ꜰʀɪᴇɴᴅꜱ ᴏʀ ʀᴇᴅᴇᴇᴍɪɴɢ ᴘᴏɪɴᴛꜱ.\n\n"
+        "🔥 ꜰᴇᴀᴛᴜʀᴇꜱ:\n"
+        "• ɪɴꜱᴛᴀɴᴛ ᴅᴇʟɪᴠᴇʀʏ\n"
+        "• ʀᴇꜰᴇʀʀᴀʟ ʀᴇᴡᴀʀᴅꜱ\n"
+        "• 24/7 ꜱᴜᴘᴘᴏʀᴛ\n\n"
         f"👥 𝗬𝗼𝘂𝗿 𝗜𝗻𝘃𝗶𝘁𝗲𝘀: <code>{invites} / 20</code>\n"
         f"🔗 𝗬𝗼𝘂𝗿 𝗜𝗻𝘃𝗶𝘁𝗲 𝗟𝗶𝗻𝗸:\n<code>{invite_link}</code>\n\n"
-        "⚠️ <i>𝖸𝗈𝗎 𝗇𝖾𝖾𝖽 𝖺𝗍 𝗅𝖾𝖺𝗌𝗍 20 𝗂𝗇𝗏𝗂𝗍𝖾𝗌 𝗍𝗈 𝖽𝖾𝗉𝗅𝗈𝗒 𝖺 𝖵𝖯𝖲.</i>"
+        "👇 ᴜꜱᴇ ᴛʜᴇ ʙᴜᴛᴛᴏɴꜱ ʙᴇʟᴏᴡ ᴛᴏ ɴᴀᴠɪɢᴀᴛᴇ."
     )
     
     banner = get_setting('BANNER_FILE_ID', '')
@@ -554,33 +557,40 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
         await update.callback_query.message.edit_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
 
-async def handle_create_vps(query, context, os_type, user_id, username):
+async def handle_create_vps(update_or_query, context, os_type, user_id, username):
+    # Determine if it's a message or callback query
+    is_message = hasattr(update_or_query, 'message') and update_or_query.message is not None and not hasattr(update_or_query, 'data')
+    message = update_or_query.message if is_message else update_or_query.message
+    
     # Enforce force join even on button clicks
     fj_check = await check_force_join(user_id, context)
     if fj_check is not True:
-        await cmd_start(query, context) # Route back to start to show force join
+        await cmd_start(update_or_query, context) # Route back to start to show force join
         return
 
     if is_banned(user_id):
-        await query.message.edit_text("❌ You are banned from creating VPS instances.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
+        await message.reply_text("❌ You are banned from creating VPS instances.") if is_message else await update_or_query.message.edit_text("❌ You are banned from creating VPS instances.")
         return
         
     invites = get_invite_count(user_id)
     if invites < 20 and not is_admin(user_id):
-        await query.message.edit_text(f"❌ You need at least 20 invites to deploy a VPS.\n\n👥 <b>Current Invites:</b> {invites}/20", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
+        text_msg = f"❌ You need at least 20 invites to deploy a VPS.\n\n👥 <b>Current Invites:</b> {invites}/20"
+        await message.reply_text(text_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(text_msg, parse_mode=ParseMode.HTML)
         return
 
     # Strictly 1 VPS per user
     if count_user_vps(user_id) >= 1:
-        await query.message.edit_text(f"❌ You have reached the maximum limit of 1 VPS instance per user.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
+        text_msg = f"❌ You have reached the maximum limit of 1 VPS instance per user."
+        await message.reply_text(text_msg) if is_message else await update_or_query.message.edit_text(text_msg)
         return
         
     total_limit = int(get_setting('TOTAL_SERVER_LIMIT', TOTAL_SERVER_LIMIT))
     if get_total_instances() >= total_limit:
-        await query.message.edit_text("❌ Global server limit reached. Please try again later.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
+        text_msg = "❌ Global server limit reached. Please try again later."
+        await message.reply_text(text_msg) if is_message else await update_or_query.message.edit_text(text_msg)
         return
 
-    msg = await query.message.edit_text("⏳ Creating your VPS instance... This takes about 30-60 seconds (Extracting RootFS and Installing Packages).")
+    msg = await message.reply_text("⏳ Creating your VPS instance... This takes about 30-60 seconds (Extracting RootFS and Installing Packages).") if is_message else await update_or_query.message.edit_text("⏳ Creating your VPS instance... This takes about 30-60 seconds (Extracting RootFS and Installing Packages).")
     
     vps_id = str(uuid.uuid4())[:8]
     hostname = f"{VPS_HOSTNAME}-{user_id}"
@@ -592,8 +602,6 @@ async def handle_create_vps(query, context, os_type, user_id, username):
     
     ssh_line = await capture_ssh_session_line(proc)
     
-    keyboard = [[InlineKeyboardButton("🖥 Go to My VPS", callback_data="list_vps")]]
-    
     if ssh_line:
         ram = get_setting('DEFAULT_RAM', DEFAULT_RAM)
         cpu = get_setting('DEFAULT_CPU', DEFAULT_CPU)
@@ -602,13 +610,53 @@ async def handle_create_vps(query, context, os_type, user_id, username):
         text = f"✅ <b>VPS Instance Created (PRoot)</b>\nOS: Ubuntu 22.04\nRAM: {ram} | CPU: {cpu} | Disk: {disk}\n<code>{ssh_line}</code>"
         try:
             await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
-            await msg.edit_text("✅ VPS created! Check your DMs for SSH details.", reply_markup=InlineKeyboardMarkup(keyboard))
+            await msg.edit_text("✅ VPS created! Check your DMs for SSH details.") if not is_message else await msg.edit_text("✅ VPS created! Check your DMs for SSH details.")
         except Exception:
-            await msg.edit_text(f"✅ VPS created! Here are the details:\n\n{text}", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+            await msg.edit_text(f"✅ VPS created! Here are the details:\n\n{text}", parse_mode=ParseMode.HTML)
     else:
-        await msg.edit_text("❌ Creation failed: Unable to generate SSH session.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]))
+        await msg.edit_text("❌ Creation failed: Unable to generate SSH session.")
         await async_proot_stop(vps_id)
 
+
+async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    user_id = update.effective_user.id
+    username = update.effective_user.username or str(user_id)
+    
+    fj_check = await check_force_join(user_id, context)
+    if fj_check is not True:
+        await cmd_start(update, context)
+        return
+
+    # Simulate query for functions expecting it, or directly handle
+    class FakeQuery:
+        def __init__(self, message, from_user):
+            self.message = message
+            self.from_user = from_user
+        async def answer(self, *args, **kwargs): pass
+
+    query = FakeQuery(update.message, update.effective_user)
+
+    if text == "🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦":
+        await handle_create_vps(update, context, "ubuntu", user_id, username)
+    elif text == "🖥 𝗠𝘆 𝗩𝗣𝗦 𝗜𝗻𝘀𝘁𝗮𝗻𝗰𝗲𝘀":
+        vps_list = get_user_vps(user_id)
+        if not vps_list:
+            await update.message.reply_text("❌ You have no VPS instances.")
+            return
+        
+        keyboard = []
+        for v in vps_list[:10]:
+            status_emoji = "🟢" if check_proot_status(v['container_id']) == "running" else "🔴"
+            keyboard.append([InlineKeyboardButton(f"{status_emoji} {v['container_name']}", callback_data=f"manage_{v['container_id']}")])
+        
+        await update.message.reply_text("🖥 <b>Your VPS Instances:</b>\nSelect one to manage:", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+    elif text == "❓ 𝗛𝗲𝗹𝗽":
+        help_text = (
+            "🤖 <b>VPS Bot Help:</b>\n\n"
+            "Deploy VPS instances up to your limits. These are PRoot environments running within a container."
+        )
+        await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -884,6 +932,7 @@ def main():
 
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
+    application.add_handler(MessageHandler(filters.Regex("^(🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦|🖥 𝗠𝘆 𝗩𝗣𝗦 𝗜𝗻𝘀𝘁𝗮𝗻𝗰𝗲𝘀|❓ 𝗛𝗲𝗹𝗽)$"), handle_keyboard_buttons))
     
     admin_conv = ConversationHandler(
         entry_points=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
