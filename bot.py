@@ -729,8 +729,7 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         await message.reply_text(text_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(text_msg, parse_mode=ParseMode.HTML)
         return
         
-    init_msg = "⏳ <b>ᴠᴘꜱ ᴅᴇᴘʟᴏʏᴍᴇɴᴛ ǫᴜᴇᴜᴇᴅ!</b>\n━━━━━━━━━━━━━━━━━━━━\nʏᴏᴜʀ ᴠᴘꜱ ɪꜱ ʙᴇɪɴɢ ᴄʀᴇᴀᴛᴇᴅ ᴏɴ ᴀ ᴡᴏʀᴋᴇʀ ɴᴏᴅᴇ. ᴛʜɪꜱ ᴍᴀʏ ᴛᴀᴋᴇ ᴜᴘ ᴛᴏ 60 ꜱᴇᴄᴏɴᴅꜱ.\n\nʏᴏᴜ ᴡɪʟʟ ʀᴇᴄᴇɪᴠᴇ ᴀ ᴍᴇꜱꜱᴀɢᴇ ᴡɪᴛʜ ʏᴏᴜʀ ꜱꜱʜ ᴄᴏᴍᴍᴀɴᴅ ᴏɴᴄᴇ ɪᴛ ɪꜱ ʀᴇᴀᴅʏ."
-    msg = await message.reply_text(init_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(init_msg, parse_mode=ParseMode.HTML)
+    msg = await message.reply_text("⏳ <b>ɪɴɪᴛɪᴀʟɪᴢɪɴɢ ᴠᴘꜱ...</b>", parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text("⏳ <b>ɪɴɪᴛɪᴀʟɪᴢɪɴɢ ᴠᴘꜱ...</b>", parse_mode=ParseMode.HTML)
     
     vps_id = str(uuid.uuid4())[:8]
     hostname = f"{VPS_HOSTNAME}-{user_id}"
@@ -750,15 +749,70 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
     conn.close()
     
     try:
-        msg = (
+        msg_admin = (
             f"🔔 <b>New VPS Queued!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 <b>User:</b> {username} (<code>{user_id}</code>)\n"
             f"🖥 <b>Container:</b> <code>{container_name}</code>\n"
             f"━━━━━━━━━━━━━━━━━━"
         )
-        await context.bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id=ADMIN_ID, text=msg_admin, parse_mode=ParseMode.HTML)
     except: pass
+
+    import asyncio
+    animation_steps = [
+        "⏳ <b>ᴀʟʟᴏᴄᴀᴛɪɴɢ ʀᴇꜱᴏᴜʀᴄᴇꜱ...</b>",
+        "⏳ <b>ᴇxᴛʀᴀᴄᴛɪɴɢ ʀᴏᴏᴛꜰꜱ...</b>",
+        "⏳ <b>ᴄᴏɴꜰɪɢᴜʀɪɴɢ ɴᴇᴛᴡᴏʀᴋ...</b>",
+        "⏳ <b>ꜱᴛᴀʀᴛɪɴɢ ꜱꜱʜ ꜱᴇʀᴠᴇʀ...</b>"
+    ]
+    
+    ssh_line = None
+    for step in animation_steps:
+        await asyncio.sleep(2.5)
+        try:
+            await msg.edit_text(step, parse_mode=ParseMode.HTML)
+        except:
+            pass
+            
+    for _ in range(45):
+        await asyncio.sleep(2)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, result FROM jobs WHERE job_id = ?", (job_id,))
+        job = cursor.fetchone()
+        conn.close()
+        
+        if job and job['status'] == 'completed':
+            ssh_line = job['result']
+            break
+        elif job and job['status'] == 'failed':
+            break
+
+    if ssh_line:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE vps SET ssh_command = ?, status = 'running' WHERE container_id = ?", (ssh_line, vps_id))
+        conn.commit()
+        conn.close()
+        
+        ssh_msg = (
+            "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ! 🎉</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🔑 <b>ʏᴏᴜʀ ꜱꜱʜ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
+            f"<code>{ssh_line}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
+        )
+        try:
+            await msg.edit_text(ssh_msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴍᴀɴᴀɢᴇ", callback_data=f"manage_{vps_id}")]]))
+        except:
+            pass
+    else:
+        try:
+            await msg.edit_text("❌ <b>ꜰᴀɪʟᴇᴅ ᴛᴏ ᴄʀᴇᴀᴛᴇ ᴠᴘꜱ ᴏʀ ᴛɪᴍᴇᴅ ᴏᴜᴛ. ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.</b>", parse_mode=ParseMode.HTML)
+        except:
+            pass
 
 
 async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
