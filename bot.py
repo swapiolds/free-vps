@@ -1132,7 +1132,7 @@ def main():
 
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
-    application.add_handler(MessageHandler(filters.Regex("^(🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦|🖥 𝗠𝘆 𝗩𝗣𝗦|❓ 𝗛𝗲𝗹𝗽|👤 𝗠𝘆 𝗣𝗿𝗼𝗳𝗶𝗹𝗲|🏆 𝗟𝗲𝗮𝗱𝗲𝗿𝗯𝗼𝗮𝗿𝗱|🎁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀|🛍️ 𝗕𝘂𝘆 𝗩𝗣𝗦)$"), handle_keyboard_buttons))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_keyboard_buttons))
     
     admin_conv = ConversationHandler(
         entry_points=[CommandHandler("admin", cmd_admin), CallbackQueryHandler(admin_callback, pattern="^admin_")],
