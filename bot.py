@@ -155,8 +155,11 @@ def get_db_connection():
 def add_user(user_id, username, referred_by=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    # If user doesn't exist, insert them. If they exist, IGNORE handles it.
-    cursor.execute('INSERT OR IGNORE INTO users (user_id, username, referred_by) VALUES (?, ?, ?)', (user_id, username, referred_by))
+    cursor.execute('SELECT 1 FROM users WHERE user_id = ?', (user_id,))
+    if cursor.fetchone():
+        cursor.execute('UPDATE users SET username = ? WHERE user_id = ?', (username, user_id))
+    else:
+        cursor.execute('INSERT INTO users (user_id, username, referred_by) VALUES (?, ?, ?)', (user_id, username, referred_by))
     conn.commit()
     conn.close()
 
@@ -532,7 +535,7 @@ async def check_force_join(user_id, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    username = update.effective_user.username or str(user_id)
+    username = update.effective_user.first_name or update.effective_user.username or str(user_id)
     
     # Check Force Join first
     fj_check = await check_force_join(user_id, context)
@@ -684,7 +687,7 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
 async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
-    username = update.effective_user.username or str(user_id)
+    username = update.effective_user.first_name or update.effective_user.username or str(user_id)
     
     fj_check = await check_force_join(user_id, context)
     if fj_check is not True:
