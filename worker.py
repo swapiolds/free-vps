@@ -136,6 +136,7 @@ def get_hardware_info():
     return {"ram": ram, "cpu": cpu, "disk": disk}
 
 async def register_node(master_url):
+    master_url = master_url.rstrip("/")
     node_file = ".node_name"
     if os.path.exists(node_file):
         with open(node_file, "r") as f:
@@ -162,6 +163,7 @@ async def register_node(master_url):
             return None
 
 async def worker_loop(master_url, node_id):
+    master_url = master_url.rstrip("/")
     print("Worker starting. Listening for jobs...")
     async with ClientSession(headers={'ngrok-skip-browser-warning': '1'}) as session:
         while True:
