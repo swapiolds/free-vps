@@ -239,7 +239,7 @@ async def async_extract_rootfs(vps_id):
                 "vendor_id\t: GenuineIntel\n"
                 "cpu family\t: 6\n"
                 "model\t\t: 85\n"
-                "model name\t: Intel(R) Xeon(R) CPU (2 Core) @ 2.50GHz\n"
+                "model name\t: Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz\n"
                 "stepping\t: 4\n"
                 "cpu MHz\t\t: 2500.000\n"
                 "cache size\t: 36608 KB\n"
@@ -251,7 +251,7 @@ async def async_extract_rootfs(vps_id):
                 "vendor_id\t: GenuineIntel\n"
                 "cpu family\t: 6\n"
                 "model\t\t: 85\n"
-                "model name\t: Intel(R) Xeon(R) CPU (2 Core) @ 2.50GHz\n"
+                "model name\t: Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz\n"
                 "stepping\t: 4\n"
                 "cpu MHz\t\t: 2500.000\n"
                 "cache size\t: 36608 KB\n"
@@ -269,6 +269,11 @@ async def async_extract_rootfs(vps_id):
             
         fake_kernel_hostname = os.path.join(target_dir, ".fake_hostname")
         with open(fake_kernel_hostname, "w") as f:
+            f.write("SwapiHost\n")
+            
+        # Spoof product name for Host in neofetch
+        fake_product_name = os.path.join(target_dir, ".fake_product_name")
+        with open(fake_product_name, "w") as f:
             f.write("SwapiHost\n")
             
         # Inject custom bash prompt to fake the hostname display
@@ -294,8 +299,13 @@ async def async_extract_rootfs(vps_id):
         
         uname_bin = os.path.join(bin_dir, "uname")
         with open(uname_bin, "w") as f:
-            f.write("#!/bin/bash\nif [ \"$1\" = \"-n\" ]; then\n    echo \"SwapiHost\"\nelse\n    /bin/uname \"$@\"\nfi\n")
+            f.write("#!/bin/bash\nif [ \"$1\" = \"-n\" ]; then\n    echo \"SwapiHost\"\nelse\n    /bin/uname \"$@\" | sed 's/-aws//g'\nfi\n")
         os.chmod(uname_bin, 0o755)
+            
+        lspci_bin = os.path.join(bin_dir, "lspci")
+        with open(lspci_bin, "w") as f:
+            f.write("#!/bin/bash\nif [ -x /usr/bin/lspci ]; then\n    /usr/bin/lspci \"$@\" | grep -v -i -E \"VGA|3D|Display|Amazon\"\nfi\n")
+        os.chmod(lspci_bin, 0o755)
             
         logger.info(f"RootFS ready for {vps_id}")
     return target_dir
@@ -303,7 +313,7 @@ async def async_extract_rootfs(vps_id):
 async def async_proot_start(vps_id):
     target_dir = os.path.join(VPS_DATA_DIR, vps_id)
     # Install tmate and start it
-    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b {target_dir}/.fake_hostname:/proc/sys/kernel/hostname -b /sys -w /root /bin/bash -c 'apt-get update >/dev/null && apt-get install -y tmate curl wget sudo openssh-client >/dev/null && tmate -F'"
+    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b {target_dir}/.fake_hostname:/proc/sys/kernel/hostname -b /sys -b {target_dir}/.fake_product_name:/sys/devices/virtual/dmi/id/product_name -b {target_dir}/.fake_product_name:/sys/devices/virtual/dmi/id/sys_vendor -b {target_dir}/.fake_product_name:/sys/class/dmi/id/product_name -b {target_dir}/.fake_product_name:/sys/class/dmi/id/sys_vendor -w /root /bin/bash -c 'apt-get update >/dev/null && apt-get install -y tmate curl wget sudo openssh-client pciutils >/dev/null && tmate -F'"
     proc = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
