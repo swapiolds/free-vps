@@ -64,7 +64,7 @@ async def async_extract_rootfs(vps_id):
 
 async def async_proot_start(vps_id):
     target_dir = os.path.join(VPS_DATA_DIR, vps_id)
-    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b {target_dir}/.fake_hostname:/proc/sys/kernel/hostname -w /root /bin/bash -c 'apt-get update >/dev/null && apt-get install -y tmate curl wget sudo >/dev/null && tmate -F'"
+    cmd = f"proot -0 -r {target_dir} -b /dev -b /proc -b {target_dir}/.fake_meminfo:/proc/meminfo -b {target_dir}/.fake_cpuinfo:/proc/cpuinfo -b {target_dir}/.fake_hostname:/proc/sys/kernel/hostname -w /root /bin/bash -c 'if ! command -v tmate &> /dev/null; then apt-get update >/dev/null && apt-get install -y tmate curl wget sudo >/dev/null; fi && tmate -F'"
     proc = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
@@ -90,7 +90,7 @@ async def capture_ssh_session_line(proc):
     ssh_line = None
     try:
         start_time = time.time()
-        while time.time() - start_time < 30:
+        while time.time() - start_time < 90:
             if proc.stdout.at_eof():
                 break
             line = await asyncio.wait_for(proc.stdout.readline(), timeout=1.0)

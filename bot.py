@@ -1508,10 +1508,6 @@ async def monitor_completed_jobs(application: Application):
                             )
                             await application.bot.send_message(chat_id=user_id, text=ssh_msg, parse_mode=ParseMode.HTML)
                         except: pass
-                    else:
-                        try: await application.bot.send_message(chat_id=user_id, text=f"❌ Failed to start VPS: {result}")
-                        except: pass
-                        
                 elif action == "stop":
                     update_vps_status(vps_id, "stopped")
                 elif action == "delete":
