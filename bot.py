@@ -644,18 +644,42 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         await message.reply_text(text_msg) if is_message else await update_or_query.message.edit_text(text_msg)
         return
 
-    msg = await message.reply_text("⏳ Creating your VPS instance... This takes about 30-60 seconds (Extracting RootFS and Installing Packages).") if is_message else await update_or_query.message.edit_text("⏳ Creating your VPS instance... This takes about 30-60 seconds (Extracting RootFS and Installing Packages).")
+    init_msg = "⏳ <b>ᴄʀᴇᴀᴛɪɴɢ ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇ...</b>\n[□□□□□□□□□□] 0%"
+    msg = await message.reply_text(init_msg, parse_mode=ParseMode.HTML) if is_message else await update_or_query.message.edit_text(init_msg, parse_mode=ParseMode.HTML)
+    
+    async def animate_loading(target_msg):
+        frames = [
+            "⏳ <b>ᴄʀᴇᴀᴛɪɴɢ ʏᴏᴜʀ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴄᴇ...</b>\n[■□□□□□□□□□] 10%",
+            "⏳ <b>ᴇxᴛʀᴀᴄᴛɪɴɢ ʀᴏᴏᴛꜰꜱ...</b>\n[■■■□□□□□□□] 30%",
+            "⏳ <b>ɪɴꜱᴛᴀʟʟɪɴɢ ᴘᴀᴄᴋᴀɢᴇꜱ...</b>\n[■■■■■□□□□□] 50%",
+            "⏳ <b>ᴄᴏɴꜰɪɢᴜʀɪɴɢ ɴᴇᴛᴡᴏʀᴋ...</b>\n[■■■■■■■□□□] 70%",
+            "⏳ <b>ꜱᴇᴛᴛɪɴɢ ᴜᴘ ꜱꜱʜ ᴀᴄᴄᴇꜱꜱ...</b>\n[■■■■■■■■■□] 90%",
+            "⏳ <b>ꜰɪɴᴀʟɪᴢɪɴɢ ꜱᴇᴛᴜᴘ...</b>\n[■■■■■■■■■■] 99%"
+        ]
+        try:
+            for frame in frames:
+                await asyncio.sleep(4)
+                await target_msg.edit_text(frame, parse_mode=ParseMode.HTML)
+            while True:
+                await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+            
+    loading_task = asyncio.create_task(animate_loading(msg))
     
     vps_id = str(uuid.uuid4())[:8]
     hostname = f"{VPS_HOSTNAME}-{user_id}"
     container_name = f"vps-{user_id}-{vps_id}"
     
-    await async_extract_rootfs(vps_id)
-    
-    proc = await async_proot_start(vps_id)
-    
-    ssh_line = await capture_ssh_session_line(proc)
-    
+    try:
+        await async_extract_rootfs(vps_id)
+        proc = await async_proot_start(vps_id)
+        ssh_line = await capture_ssh_session_line(proc)
+    finally:
+        loading_task.cancel()
+        
     if ssh_line:
         ram = get_setting('DEFAULT_RAM', DEFAULT_RAM)
         cpu = get_setting('DEFAULT_CPU', DEFAULT_CPU)
@@ -676,11 +700,11 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         )
         try:
             await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
-            await msg.edit_text("✅ VPS created! Check your DMs for SSH details.") if not is_message else await msg.edit_text("✅ VPS created! Check your DMs for SSH details.")
+            await msg.edit_text("✅ <b>ᴠᴘꜱ ᴄʀᴇᴀᴛᴇᴅ!</b> ᴄʜᴇᴄᴋ ʏᴏᴜʀ ᴅᴍꜱ ꜰᴏʀ ꜱꜱʜ ᴅᴇᴛᴀɪʟꜱ.", parse_mode=ParseMode.HTML)
         except Exception:
-            await msg.edit_text(f"✅ VPS created! Here are the details:\n\n{text}", parse_mode=ParseMode.HTML)
+            await msg.edit_text(f"✅ <b>ᴠᴘꜱ ᴄʀᴇᴀᴛᴇᴅ!</b> ʜᴇʀᴇ ᴀʀᴇ ᴛʜᴇ ᴅᴇᴛᴀɪʟꜱ:\n\n{text}", parse_mode=ParseMode.HTML)
     else:
-        await msg.edit_text("❌ Creation failed: Unable to generate SSH session.")
+        await msg.edit_text("❌ <b>ᴄʀᴇᴀᴛɪᴏɴ ꜰᴀɪʟᴇᴅ:</b> ᴜɴᴀʙʟᴇ ᴛᴏ ɢᴇɴᴇʀᴀᴛᴇ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ.", parse_mode=ParseMode.HTML)
         await async_proot_stop(vps_id)
 
 
