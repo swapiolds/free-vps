@@ -1192,7 +1192,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ''', (user_id, vps_id, container_name, "ubuntu", hostname, "Pending...", node_id, ram, cpu, disk))
         
         job_id = str(uuid.uuid4())
-        cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, 'create', ?)", (job_id, container_name, node_id))
+        cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, 'create', ?)", (job_id, vps_id, node_id))
         conn.commit()
         conn.close()
         
