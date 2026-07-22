@@ -134,7 +134,15 @@ def get_hardware_info():
     return {"ram": ram, "cpu": cpu, "disk": disk}
 
 async def register_node(master_url):
-    node_name = os.uname().nodename + "-" + str(uuid.uuid4())[:4]
+    node_file = ".node_name"
+    if os.path.exists(node_file):
+        with open(node_file, "r") as f:
+            node_name = f.read().strip()
+    else:
+        node_name = os.uname().nodename + "-" + str(uuid.uuid4())[:4]
+        with open(node_file, "w") as f:
+            f.write(node_name)
+            
     hw = get_hardware_info()
     payload = {'name': node_name, 'ram': hw['ram'], 'cpu': hw['cpu'], 'disk': hw['disk']}
     
