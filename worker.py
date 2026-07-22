@@ -8,6 +8,9 @@ import argparse
 import subprocess
 from aiohttp import ClientSession
 
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+
 # Constants
 VPS_DATA_DIR = "/root/vps_data"
 UBUNTU_TAR_PATH = "/root/ubuntu-base.tar.gz"
