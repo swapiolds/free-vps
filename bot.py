@@ -876,7 +876,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         spec_text = "8ɢʙ ʀᴀᴍ | 4 ᴄᴘᴜ" if is_upgraded else f"{vps['ram']} ʀᴀᴍ | {vps['cpu']} ᴄᴘᴜ"
         vip_tag = " 💎 [ᴠɪᴘ]" if is_upgraded else ""
         
-        response += f"ᴏꜱ: ᴜʙᴜɴᴛᴜ 22.04 (ᴘʀᴏᴏᴛ){vip_tag}\n"
+        response += f"ᴏꜱ: ᴜʙᴜɴᴛᴜ 22.04 ʟᴛꜱ{vip_tag}\n"
         response += f"ꜱᴘᴇᴄꜱ: {spec_text}\n"
         
         if vps['expires_at']:
@@ -903,7 +903,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
             
         if action in ["start", "stop", "restart"]:
-            await query.message.edit_text(f"⏳ Processing `{action}` action...", parse_mode=ParseMode.MARKDOWN)
+            await query.message.edit_text(f"⏳ <b>ᴘʀᴏᴄᴇꜱꜱɪɴɢ '{action.upper()}' ᴀᴄᴛɪᴏɴ...</b>", parse_mode=ParseMode.HTML)
             if action == "start": 
                 proc = await async_proot_start(vps_id)
                 success = True
@@ -911,7 +911,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if ssh_line:
                     update_vps_ssh(vps_id, ssh_line)
                     try:
-                        await context.bot.send_message(chat_id=user_id, text=f"✅ <b>New SSH Session Generated:</b>\n<code>{ssh_line}</code>", parse_mode=ParseMode.HTML)
+                        await context.bot.send_message(chat_id=user_id, text=f"✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ:</b>\n<code>{ssh_line}</code>", parse_mode=ParseMode.HTML)
                     except: pass
             elif action == "stop": 
                 success = await async_proot_stop(vps_id)
@@ -926,25 +926,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if success:
                 update_vps_status(vps_id, "running" if action in ["start", "restart"] else "stopped")
             
-            keyboard = [[InlineKeyboardButton("🔙 Back to VPS", callback_data=f"manage_{vps_id}")]]
-            text = f"✅ Action '{action.title()}' completed successfully." if success else f"❌ Action '{action.title()}' failed."
-            await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+            keyboard = [[InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ᴠᴘꜱ", callback_data=f"manage_{vps_id}")]]
+            text = f"✅ <b>ᴀᴄᴛɪᴏɴ '{action.upper()}' ᴄᴏᴍᴘʟᴇᴛᴇᴅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ.</b>" if success else f"❌ <b>ᴀᴄᴛɪᴏɴ '{action.upper()}' ꜰᴀɪʟᴇᴅ.</b>"
+            await query.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
         elif action == "delete":
-            await query.message.edit_text("⏳ Removing VPS...")
+            await query.message.edit_text("⏳ <b>ʀᴇᴍᴏᴠɪɴɢ ᴠᴘꜱ...</b>", parse_mode=ParseMode.HTML)
             await async_proot_stop(vps_id)
             await async_proot_rm(vps_id)
             delete_vps(vps_id)
-            keyboard = [[InlineKeyboardButton("🔙 Back to List", callback_data="list_vps")]]
-            await query.message.edit_text("✅ VPS Removed Successfully.", reply_markup=InlineKeyboardMarkup(keyboard))
+            keyboard = [[InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʟɪꜱᴛ", callback_data="list_vps")]]
+            await query.message.edit_text("✅ <b>ᴠᴘꜱ ʀᴇᴍᴏᴠᴇᴅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ.</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
             
         elif action == "genssh":
             ssh_line = vps['ssh_line']
             status = check_proot_status(vps_id)
             if not ssh_line or status != "running":
-                await query.message.edit_text("❌ VPS is not running or no SSH session active. Please Start or Restart it.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"manage_{vps_id}")]]))
+                await query.message.edit_text("❌ <b>ᴠᴘꜱ ɪꜱ ɴᴏᴛ ʀᴜɴɴɪɴɢ ᴏʀ ɴᴏ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ᴀᴄᴛɪᴠᴇ. ᴘʟᴇᴀꜱᴇ ꜱᴛᴀʀᴛ ᴏʀ ʀᴇꜱᴛᴀʀᴛ ɪᴛ.</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data=f"manage_{vps_id}")]]))
                 return
-            await query.message.edit_text(f"🔑 <b>Your SSH Command:</b>\n\n<code>{ssh_line}</code>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"manage_{vps_id}")]]))
+            await query.message.edit_text(f"🔑 <b>ʏᴏᴜʀ ꜱꜱʜ ᴄᴏᴍᴍᴀɴᴅ:</b>\n\n<code>{ssh_line}</code>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data=f"manage_{vps_id}")]]))
 
 
 # ----------------- Admin Panel -----------------
