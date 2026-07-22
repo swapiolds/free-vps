@@ -1136,10 +1136,10 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = f"🖥 <b>Node:</b> {node['name']}\n"
         text += f"━━━━━━━━━━━━━━━━━━━━\n"
         text += f"<b>Status:</b> {node['status'].upper()}\n"
-        text += f"<b>RAM:</b> {node.get('ram', 'Unknown')}\n"
-        text += f"<b>CPU:</b> {node.get('cpu', 'Unknown')}\n"
-        text += f"<b>Disk:</b> {node.get('disk', 'Unknown')}\n"
-        text += f"<b>VPS Hosted:</b> {vps_count} / {node.get('max_vps', 5)}\n"
+        text += f"<b>RAM:</b> {node['ram'] or 'Unknown'}\n"
+        text += f"<b>CPU:</b> {node['cpu'] or 'Unknown'}\n"
+        text += f"<b>Disk:</b> {node['disk'] or 'Unknown'}\n"
+        text += f"<b>VPS Hosted:</b> {vps_count} / {node['max_vps'] or 5}\n"
         text += f"<b>Last Ping:</b> {node['last_ping']}\n"
         
         buttons = [
