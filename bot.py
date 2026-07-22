@@ -544,20 +544,22 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     fj_check = await check_force_join(user_id, context)
     if fj_check is not True:
         _, markup, banner, caption = fj_check
+        
+        if update.callback_query:
+            try:
+                await update.callback_query.message.delete()
+            except: pass
+            
+        chat_id = update.effective_chat.id
+        
         if banner:
             try:
-                if update.message:
-                    await update.message.reply_photo(photo=banner, caption=caption, parse_mode=ParseMode.HTML, reply_markup=markup)
-                elif update.callback_query:
-                    await update.callback_query.message.reply_photo(photo=banner, caption=caption, parse_mode=ParseMode.HTML, reply_markup=markup)
+                await context.bot.send_photo(chat_id=chat_id, photo=banner, caption=caption, parse_mode=ParseMode.HTML, reply_markup=markup)
                 return
             except Exception:
                 pass
-        
-        if update.message:
-            await update.message.reply_text(caption, parse_mode=ParseMode.HTML, reply_markup=markup)
-        elif update.callback_query:
-            await update.callback_query.message.edit_text(caption, parse_mode=ParseMode.HTML, reply_markup=markup)
+                
+        await context.bot.send_message(chat_id=chat_id, text=caption, parse_mode=ParseMode.HTML, reply_markup=markup)
         return
 
     # Handle Referral System
