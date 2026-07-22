@@ -777,12 +777,20 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
             
     for _ in range(45):
         await asyncio.sleep(2)
+        
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute("SELECT ssh_command FROM vps WHERE container_id = ?", (vps_id,))
+        vps_row = cursor.fetchone()
+        
         cursor.execute("SELECT status, result FROM jobs WHERE job_id = ?", (job_id,))
         job = cursor.fetchone()
         conn.close()
         
+        if vps_row and vps_row['ssh_command'] and vps_row['ssh_command'] != 'None':
+            ssh_line = vps_row['ssh_command']
+            break
+            
         if job and job['status'] == 'completed':
             ssh_line = job['result']
             break
@@ -1586,17 +1594,6 @@ async def monitor_completed_jobs(application: Application):
                         update_vps_ssh(vps_id, result)
                         update_vps_status(vps_id, "running")
                         cursor.execute("UPDATE vps SET node_id = ? WHERE container_id = ?", (job['node_id'], vps_id))
-                        try:
-                            ssh_msg = (
-                                "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ!</b> 🎉\n"
-                                "━━━━━━━━━━━━━━━━━━━━\n"
-                                "🔑 <b>ꜱꜱʜ ᴀᴄᴄᴇꜱꜱ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
-                                f"<code>{result}</code>\n"
-                                "━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
-                            )
-                            await application.bot.send_message(chat_id=user_id, text=ssh_msg, parse_mode=ParseMode.HTML)
-                        except: pass
                 
                 cursor.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
                 
