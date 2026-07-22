@@ -93,15 +93,15 @@ async def async_proot_rm(vps_id):
 
 async def capture_ssh_session_line(proc):
     ssh_line = None
-    try:
-        start_time = time.time()
-        while time.time() - start_time < 90:
-            if proc.stdout.at_eof():
-                break
+    start_time = time.time()
+    while time.time() - start_time < 90:
+        if proc.stdout.at_eof():
+            break
+        try:
             line = await asyncio.wait_for(proc.stdout.readline(), timeout=1.0)
             if not line:
                 break
-            line_str = line.decode('utf-8').strip()
+            line_str = line.decode('utf-8', errors='ignore').strip()
             print(f"tmate log: {line_str}")
             if "ssh " in line_str and "ro" not in line_str:
                 parts = line_str.split()
@@ -111,8 +111,11 @@ async def capture_ssh_session_line(proc):
                         break
             if ssh_line:
                 break
-    except Exception as e:
-        print(f"Error capturing tmate output: {e}")
+        except asyncio.TimeoutError:
+            continue
+        except Exception as e:
+            print(f"Error capturing tmate output: {e}")
+            break
     return ssh_line
 
 def get_hardware_info():
