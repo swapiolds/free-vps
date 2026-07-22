@@ -438,9 +438,9 @@ async def capture_ssh_session_line(process):
 
 def get_main_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Deploy VPS (Ubuntu)", callback_data="deploy_ubuntu")],
-        [InlineKeyboardButton("🖥 My VPS Instances", callback_data="list_vps")],
-        [InlineKeyboardButton("❓ Help", callback_data="help")]
+        [InlineKeyboardButton("🚀 𝗗𝗲𝗽𝗹𝗼𝘆 𝗩𝗣𝗦", callback_data="deploy_ubuntu")],
+        [InlineKeyboardButton("🖥 𝗠𝘆 𝗩𝗣𝗦 𝗜𝗻𝘀𝘁𝗮𝗻𝗰𝗲𝘀", callback_data="list_vps")],
+        [InlineKeyboardButton("❓ 𝗛𝗲𝗹𝗽", callback_data="help")]
     ])
 
 async def check_force_join(user_id, context: ContextTypes.DEFAULT_TYPE):
@@ -520,17 +520,38 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     invite_link = f"https://t.me/{bot_username}?start={user_id}"
 
     msg = (
-        "👋 <b>Welcome to UnixNodes VPS Bot! (PRoot Edition)</b>\n"
+        "👋 𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗨𝗻𝗶𝘅𝗡𝗼𝗱𝗲𝘀 𝗩𝗣𝗦 𝗕𝗼𝘁!\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "Deploy and manage your free VPS instances here.\n\n"
-        f"👥 <b>Your Invites:</b> <code>{invites} / 20</code>\n"
-        f"🔗 <b>Your Invite Link:</b>\n<code>{invite_link}</code>\n\n"
-        "<i>You need at least 20 invites to deploy a VPS.</i>"
+        "🚀 𝖣𝖾𝗉𝗅𝗈𝗒 𝖺𝗇𝖽 𝗆𝖺𝗇𝖺𝗀𝖾 𝗒𝗈𝗎𝗋 𝖿𝗋𝖾𝖾 𝖵𝖯𝖲 𝗂𝗇𝗌𝗍𝖺𝗇𝖼𝖾𝗌.\n\n"
+        f"👥 𝗬𝗼𝘂𝗿 𝗜𝗻𝘃𝗶𝘁𝗲𝘀: <code>{invites} / 20</code>\n"
+        f"🔗 𝗬𝗼𝘂𝗿 𝗜𝗻𝘃𝗶𝘁𝗲 𝗟𝗶𝗻𝗸:\n<code>{invite_link}</code>\n\n"
+        "⚠️ <i>𝖸𝗈𝗎 𝗇𝖾𝖾𝖽 𝖺𝗍 𝗅𝖾𝖺𝗌𝗍 20 𝗂𝗇𝗏𝗂𝗍𝖾𝗌 𝗍𝗈 𝖽𝖾𝗉𝗅𝗈𝗒 𝖺 𝖵𝖯𝖲.</i>"
     )
     
+    banner = get_setting('BANNER_FILE_ID', '')
+    
     if update.message:
+        if banner:
+            try:
+                await update.message.reply_photo(photo=banner, caption=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
+                return
+            except Exception:
+                pass
         await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
     elif update.callback_query:
+        if banner and not update.callback_query.message.photo:
+            try:
+                await update.callback_query.message.delete()
+                await update.callback_query.message.reply_photo(photo=banner, caption=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
+                return
+            except Exception:
+                pass
+        elif banner and update.callback_query.message.photo:
+            try:
+                await update.callback_query.message.edit_caption(caption=msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
+                return
+            except Exception:
+                pass
         await update.callback_query.message.edit_text(msg, parse_mode=ParseMode.HTML, reply_markup=get_main_menu_keyboard())
 
 async def handle_create_vps(query, context, os_type, user_id, username):
