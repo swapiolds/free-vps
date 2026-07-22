@@ -1182,9 +1182,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Add VPS explicitly bound to this node_id
         cursor.execute('''
-            INSERT INTO vps (user_id, vps_id, container_id, container_name, os, hostname, status, node_id, ram, cpu, disk)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, vps_id, container_name, container_name, "ubuntu", hostname, "Pending...", node_id, ram, cpu, disk))
+            INSERT INTO vps (user_id, container_id, container_name, os_type, hostname, status, node_id, ram, cpu, disk)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, vps_id, container_name, "ubuntu", hostname, "Pending...", node_id, ram, cpu, disk))
         
         job_id = str(uuid.uuid4())
         cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, 'create', ?)", (job_id, container_name, node_id))

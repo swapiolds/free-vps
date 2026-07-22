@@ -28,4 +28,4 @@ Environment=PYTHONUNBUFFERED=1
 WantedBy=multi-user.target
 
 sudo systemctl daemon-reload
-sudo systemctl restart unixbot
+w
