@@ -638,13 +638,15 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     invite_link = f"https://t.me/{bot_username}?start={user_id}"
 
     msg = (
-        "👋 ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ꜱᴡᴀᴘɪʜᴏꜱᴛ ᴠᴘꜱ ʙᴏᴛ!\n\n"
-        "🎬 ɢᴇᴛ ꜰʀᴇᴇ ᴠᴘꜱ ʙʏ ʀᴇꜰᴇʀʀɪɴɢ ꜰʀɪᴇɴᴅꜱ ᴏʀ ʀᴇᴅᴇᴇᴍɪɴɢ ᴘᴏɪɴᴛꜱ.\n\n"
-        "🔥 ꜰᴇᴀᴛᴜʀᴇꜱ:\n"
+        "👋 <b>ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ꜱᴡᴀᴘɪʜᴏꜱᴛ ᴠᴘꜱ ʙᴏᴛ!</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "🎬 <b>ɢᴇᴛ ꜰʀᴇᴇ ᴠᴘꜱ:</b> ʀᴇꜰᴇʀ ꜰʀɪᴇɴᴅꜱ ᴏʀ ʀᴇᴅᴇᴇᴍ ᴘᴏɪɴᴛꜱ.\n\n"
+        "🔥 <b>ꜰᴇᴀᴛᴜʀᴇꜱ:</b>\n"
         "• ɪɴꜱᴛᴀɴᴛ ᴅᴇʟɪᴠᴇʀʏ\n"
         "• ʀᴇꜰᴇʀʀᴀʟ ʀᴇᴡᴀʀᴅꜱ\n"
         "• 24/7 ꜱᴜᴘᴘᴏʀᴛ\n\n"
-        "👇 ᴜꜱᴇ ᴛʜᴇ ʙᴜᴛᴛᴏɴꜱ ʙᴇʟᴏᴡ ᴛᴏ ɴᴀᴠɪɢᴀᴛᴇ."
+        "👇 <i>ᴜꜱᴇ ᴛʜᴇ ʙᴜᴛᴛᴏɴꜱ ʙᴇʟᴏᴡ ᴛᴏ ɴᴀᴠɪɢᴀᴛᴇ.</i>\n"
+        "━━━━━━━━━━━━━━━━━━"
     )
     
     banner = get_setting('BANNER_FILE_ID', '')
@@ -682,13 +684,14 @@ async def cmd_nodes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ <b>ɴᴏ ᴡᴏʀᴋᴇʀ ɴᴏᴅᴇꜱ ᴄᴏɴɴᴇᴄᴛᴇᴅ.</b>", parse_mode=ParseMode.HTML)
         return
         
-    text = "🖥 <b>ᴄᴏɴɴᴇᴄᴛᴇᴅ ᴡᴏʀᴋᴇʀ ɴᴏᴅᴇꜱ:</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+    text = "🖥 <b>ᴄᴏɴɴᴇᴄᴛᴇᴅ ᴡᴏʀᴋᴇʀ ɴᴏᴅᴇꜱ:</b>\n━━━━━━━━━━━━━━━━━━\n"
     for n in nodes:
         status_emoji = "🟢" if n['status'] == "active" else "🔴"
         last_ping = n['last_ping'] if n['last_ping'] else "Unknown"
         text += f"{status_emoji} <b>{n['name']}</b>\n"
         text += f"• <b>ɪᴅ:</b> <code>{n['node_id']}</code>\n"
-        text += f"• <b>ʟᴀꜱᴛ ᴘɪɴɢ:</b> {last_ping}\n\n"
+        text += f"• <b>ʟᴀꜱᴛ ᴘɪɴɢ:</b> <code>{last_ping}</code>\n\n"
+    text += "━━━━━━━━━━━━━━━━━━"
         
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
@@ -802,14 +805,15 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         invite_link = f"https://t.me/{bot_username}?start={user_id}"
         
         profile_text = (
-            f"👤 <b>ᴜꜱᴇʀ ᴘʀᴏꜰɪʟᴇ:</b> {username}\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>ᴜꜱᴇʀ ᴘʀᴏꜰɪʟᴇ:</b> <code>{username}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
             f"🆔 <b>ɪᴅ:</b> <code>{user_id}</code>\n"
             f"📅 <b>ᴊᴏɪɴᴇᴅ:</b> {created_at}\n\n"
-            f"👥 <b>ᴛᴏᴛᴀʟ ɪɴᴠɪᴛᴇꜱ:</b> {total_invites}\n"
-            f"💰 <b>ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴᴠɪᴛᴇꜱ (ᴘᴏɪɴᴛꜱ):</b> {total_invites - spent}\n"
-            f"🖥 <b>ᴛᴏᴛᴀʟ ᴠᴘꜱ:</b> {vps_count}\n\n"
-            f"🔗 <b>ʏᴏᴜʀ ɪɴᴠɪᴛᴇ ʟɪɴᴋ:</b>\n<code>{invite_link}</code>"
+            f"👥 <b>ᴛᴏᴛᴀʟ ɪɴᴠɪᴛᴇꜱ:</b> <code>{total_invites}</code>\n"
+            f"💰 <b>ᴀᴠᴀɪʟᴀʙʟᴇ ᴘᴏɪɴᴛꜱ:</b> <code>{total_invites - spent}</code>\n"
+            f"🖥 <b>ᴛᴏᴛᴀʟ ᴠᴘꜱ:</b> <code>{vps_count}</code>\n\n"
+            f"🔗 <b>ʏᴏᴜʀ ɪɴᴠɪᴛᴇ ʟɪɴᴋ:</b>\n<code>{invite_link}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━"
         )
         await update.message.reply_text(profile_text, parse_mode=ParseMode.HTML)
         
@@ -819,10 +823,11 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text("🏆 No one is on the leaderboard yet!")
             return
             
-        board = "🏆 <b>ᴛᴏᴘ 10 ɪɴᴠɪᴛᴇʀ ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ:</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+        board = "🏆 <b>ᴛᴏᴘ 10 ɪɴᴠɪᴛᴇʀ ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ:</b>\n━━━━━━━━━━━━━━━━━━\n"
         for idx, (uname, inv) in enumerate(leaders, 1):
             emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🏅"
-            board += f"{emoji} <b>{uname}</b> — {inv} ɪɴᴠɪᴛᴇꜱ\n"
+            board += f"{emoji} <b>{uname}</b> — <code>{inv} ɪɴᴠɪᴛᴇꜱ</code>\n"
+        board += "━━━━━━━━━━━━━━━━━━"
         
         await update.message.reply_text(board, parse_mode=ParseMode.HTML)
         
@@ -833,10 +838,11 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
         
         msg = (
             "🎁 <b>ʀᴇᴡᴀʀᴅꜱ ᴄᴇɴᴛᴇʀ</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"ʏᴏᴜ ᴄᴜʀʀᴇɴᴛʟʏ ʜᴀᴠᴇ <b>{available}</b> ᴀᴠᴀɪʟᴀʙʟᴇ ɪɴᴠɪᴛᴇ ᴘᴏɪɴᴛꜱ.\n\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"ʏᴏᴜ ᴄᴜʀʀᴇɴᴛʟʏ ʜᴀᴠᴇ <code>{available}</code> ᴀᴠᴀɪʟᴀʙʟᴇ ᴘᴏɪɴᴛꜱ.\n\n"
             "💎 <b>ᴜᴘɢʀᴀᴅᴇ ᴠᴘꜱ ᴛᴏ 8ɢʙ ʀᴀᴍ</b>\n"
-            "ᴄᴏꜱᴛ: 50 ɪɴᴠɪᴛᴇꜱ\n"
+            "💳 <b>ᴄᴏꜱᴛ:</b> <code>50 ɪɴᴠɪᴛᴇꜱ</code>\n"
+            "━━━━━━━━━━━━━━━━━━\n"
             "ꜱᴇʟᴇᴄᴛ ᴀ ᴠᴘꜱ ᴛᴏ ᴜᴘɢʀᴀᴅᴇ:"
         )
         
@@ -859,22 +865,24 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
     elif "🛍" in text:
         buy_text = (
             "🛍️ <b>ʙᴜʏ ᴘʀᴇᴍɪᴜᴍ ᴠᴘꜱ</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
+            "━━━━━━━━━━━━━━━━━━\n"
             "ᴡᴀɴᴛ ᴛᴏ ʙʏᴘᴀꜱꜱ ᴛʜᴇ ɪɴᴠɪᴛᴇ ʟɪᴍɪᴛ ᴀɴᴅ ɢᴇᴛ ᴀ ʜɪɢʜ-ᴘᴇʀꜰᴏʀᴍᴀɴᴄᴇ ᴠᴘꜱ ɪɴꜱᴛᴀɴᴛʟʏ?\n\n"
-            "🌐 <b>ᴠɪꜱɪᴛ ᴏᴜʀ ᴡᴇʙꜱɪᴛᴇ:</b> <a href='https://swapihost.in'>swapihost.in</a>\n"
+            "🌐 <b>ᴡᴇʙꜱɪᴛᴇ:</b> <a href='https://swapihost.in'>swapihost.in</a>\n"
             "💬 <b>ᴄᴏɴᴛᴀᴄᴛ ᴀᴅᴍɪɴ:</b> @swapibhai\n\n"
-            "<i>ɢᴇᴛ 24/7 ᴜᴘᴛɪᴍᴇ, ᴅᴇᴅɪᴄᴀᴛᴇᴅ ʀᴇꜱᴏᴜʀᴄᴇꜱ, ᴀɴᴅ ᴘʀᴇᴍɪᴜᴍ ꜱᴜᴘᴘᴏʀᴛ!</i>"
+            "<i>ɢᴇᴛ 24/7 ᴜᴘᴛɪᴍᴇ, ᴅᴇᴅɪᴄᴀᴛᴇᴅ ʀᴇꜱᴏᴜʀᴄᴇꜱ, ᴀɴᴅ ᴘʀᴇᴍɪᴜᴍ ꜱᴜᴘᴘᴏʀᴛ!</i>\n"
+            "━━━━━━━━━━━━━━━━━━"
         )
         await update.message.reply_text(buy_text, parse_mode=ParseMode.HTML)
         
     elif "❓" in text:
         help_text = (
             "🤖 <b>ᴠᴘꜱ ʙᴏᴛ ꜱᴜᴘᴘᴏʀᴛ:</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
+            "━━━━━━━━━━━━━━━━━━\n"
             "ʜᴀᴠɪɴɢ ᴛʀᴏᴜʙʟᴇ ᴡɪᴛʜ ʏᴏᴜʀ ᴠᴘꜱ ᴏʀ ɴᴇᴇᴅ ᴀꜱꜱɪꜱᴛᴀɴᴄᴇ?\n\n"
             "💬 <b>ᴅɪʀᴇᴄᴛ ꜱᴜᴘᴘᴏʀᴛ:</b> @swapibhai\n"
             "🌐 <b>ᴡᴇʙꜱɪᴛᴇ:</b> <a href='https://swapihost.in'>swapihost.in</a>\n\n"
-            "<i>ᴡᴇ ᴀʀᴇ ʜᴇʀᴇ ᴛᴏ ʜᴇʟᴘ!</i>"
+            "<i>ᴡᴇ ᴀʀᴇ ʜᴇʀᴇ ᴛᴏ ʜᴇʟᴘ!</i>\n"
+            "━━━━━━━━━━━━━━━━━━"
         )
         await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
 
@@ -1140,22 +1148,55 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.edit_text("❌ Node not found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="admin_manage_nodes")]]))
             return ConversationHandler.END
             
-        text = f"🖥 <b>Node:</b> {node['name']}\n"
-        text += f"━━━━━━━━━━━━━━━━━━━━\n"
-        text += f"<b>Status:</b> {node['status'].upper()}\n"
-        text += f"<b>RAM:</b> {node['ram'] or 'Unknown'}\n"
-        text += f"<b>CPU:</b> {node['cpu'] or 'Unknown'}\n"
-        text += f"<b>Disk:</b> {node['disk'] or 'Unknown'}\n"
-        text += f"<b>VPS Hosted:</b> {vps_count} / {node['max_vps'] or 5}\n"
-        text += f"<b>Last Ping:</b> {node['last_ping']}\n"
+        text = f"🖥 <b>Node:</b> <code>{node['name']}</code>\n"
+        text += f"━━━━━━━━━━━━━━━━━━\n"
+        text += f"⚙️ <b>Status:</b> <code>{node['status'].upper()}</code>\n"
+        text += f"⚡️ <b>RAM:</b> <code>{node['ram'] or 'Unknown'}</code>\n"
+        text += f"🔥 <b>CPU:</b> <code>{node['cpu'] or 'Unknown'}</code>\n"
+        text += f"💾 <b>Disk:</b> <code>{node['disk'] or 'Unknown'}</code>\n"
+        text += f"👥 <b>VPS Hosted:</b> <code>{vps_count} / {node['max_vps'] or 5}</code>\n"
+        text += f"📡 <b>Last Ping:</b> <code>{node['last_ping']}</code>\n"
+        text += f"━━━━━━━━━━━━━━━━━━"
         
         buttons = [
+            [InlineKeyboardButton("🧪 Test Node (5m Auto-Delete)", callback_data=f"admin_testnode_{node_id}")],
             [InlineKeyboardButton("📊 Set VPS Limit", callback_data=f"admin_set_node_limit_{node_id}")],
             [InlineKeyboardButton("🔙 Back to Nodes", callback_data="admin_manage_nodes")]
         ]
         await query.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
         return ConversationHandler.END
         
+    elif data.startswith("admin_testnode_"):
+        node_id = int(data.split("_")[2])
+        vps_id = f"test-{str(uuid.uuid4())[:4]}"
+        user_id = query.from_user.id
+        hostname = f"test-node-{node_id}"
+        container_name = f"vps-{user_id}-{vps_id}"
+        
+        ram = get_setting('DEFAULT_RAM', DEFAULT_RAM)
+        cpu = get_setting('DEFAULT_CPU', DEFAULT_CPU)
+        disk = get_setting('DEFAULT_DISK', DEFAULT_DISK)
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Add VPS explicitly bound to this node_id
+        cursor.execute('''
+            INSERT INTO vps (user_id, vps_id, container_id, container_name, os, hostname, status, node_id, ram, cpu, disk)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, vps_id, container_name, container_name, "ubuntu", hostname, "Pending...", node_id, ram, cpu, disk))
+        
+        job_id = str(uuid.uuid4())
+        cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, 'create', ?)", (job_id, container_name, node_id))
+        conn.commit()
+        conn.close()
+        
+        # Schedule auto-delete after 5 minutes (300 seconds)
+        context.job_queue.run_once(delete_test_vps_job, 300, data={'vps_id': container_name, 'user_id': user_id})
+        
+        await query.message.edit_text(f"✅ <b>Test VPS Queued on Node {node_id}!</b>\nID: <code>{container_name}</code>\n<i>It will automatically delete in 5 minutes.</i>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"admin_node_{node_id}")]]))
+        return ConversationHandler.END
+
     elif data.startswith("admin_set_node_limit_"):
         node_id = int(data.split("_")[4])
         context.user_data['edit_node_id'] = node_id
@@ -1251,7 +1292,14 @@ async def broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             failed += 1
             
-    await msg.reply_text(f"✅ <b>Broadcast Complete!</b>\nSuccess: {success}\nFailed: {failed}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_back")]]), parse_mode=ParseMode.HTML)
+    res_msg = (
+        f"✅ <b>Broadcast Complete!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🟢 <b>Success:</b> <code>{success}</code>\n"
+        f"🔴 <b>Failed:</b> <code>{failed}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━"
+    )
+    await msg.reply_text(res_msg, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_back")]]), parse_mode=ParseMode.HTML)
     return ConversationHandler.END
 
 # ----------------- Background Tasks -----------------
@@ -1391,6 +1439,37 @@ async def start_master_api(application: Application):
             logger.info(f"Ngrok tunnel established at: {url}")
         except Exception as e:
             logger.error(f"Failed to start Ngrok tunnel: {e}")
+
+async def delete_test_vps_job(context: ContextTypes.DEFAULT_TYPE):
+    job_data = context.job.data
+    vps_id = job_data['vps_id']
+    user_id = job_data['user_id']
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT node_id FROM vps WHERE container_id = ?", (vps_id,))
+    row = cursor.fetchone()
+    
+    if row:
+        node_id = row['node_id']
+        job_uuid = str(uuid.uuid4())
+        cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, 'delete', ?)", (job_uuid, vps_id, node_id))
+        
+        # Delete from DB immediately so it doesn't show in UI
+        cursor.execute("DELETE FROM vps WHERE container_id = ?", (vps_id,))
+        conn.commit()
+        
+        try:
+            msg = (
+                f"🗑 <b>Test VPS Auto-Deleted!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🆔 <b>Container:</b> <code>{vps_id}</code>\n"
+                f"⏱ <b>5 minutes expired.</b>\n"
+                f"━━━━━━━━━━━━━━━━━━"
+            )
+            await context.bot.send_message(chat_id=user_id, text=msg, parse_mode=ParseMode.HTML)
+        except: pass
+    conn.close()
 
 async def monitor_completed_jobs(application: Application):
     while True:
