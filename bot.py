@@ -6,7 +6,8 @@ import os
 import re
 import time
 import asyncio
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import uuid
 import urllib.request
 import json
@@ -133,7 +134,7 @@ def init_db():
         'DEFAULT_EXPIRY_DAYS': '30'
     }
     for k, v in default_settings.items():
-        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (%s, %s)", (k, v))
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS force_join (
@@ -192,20 +193,22 @@ def init_db():
 
 init_db()
 
+POSTGRES_URL = "postgresql://neondb_owner:npg_XLxaJP39efcw@ep-weathered-recipe-aujkbfqe-pooler.c-10.us-east-1.aws.neon.tech/neondb%schannel_binding=require&sslmode=require"
+
 def get_db_connection():
-    conn = sqlite3.connect(DATABASE_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(POSTGRES_URL, cursor_factory=RealDictCursor)
+    conn.autocommit = True
     return conn
 
 def add_user(user_id, username, referred_by=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT 1 FROM users WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT 1 FROM users WHERE user_id = %s', (user_id,))
     is_new = False
     if cursor.fetchone():
-        cursor.execute('UPDATE users SET username = ? WHERE user_id = ?', (username, user_id))
+        cursor.execute('UPDATE users SET username = %s WHERE user_id = %s', (username, user_id))
     else:
-        cursor.execute('INSERT INTO users (user_id, username, referred_by) VALUES (?, ?, ?)', (user_id, username, referred_by))
+        cursor.execute('INSERT INTO users (user_id, username, referred_by) VALUES (%s, %s, %s)', (user_id, username, referred_by))
         is_new = True
     conn.commit()
     conn.close()
@@ -214,7 +217,7 @@ def add_user(user_id, username, referred_by=None):
 def get_invite_count(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by = ?", (user_id,))
+    cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by = %s", (user_id,))
     count = cursor.fetchone()[0]
     conn.close()
     return count
@@ -222,7 +225,7 @@ def get_invite_count(user_id):
 def get_spent_invites(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT spent_invites FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT spent_invites FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
     conn.close()
     return row[0] if row else 0
@@ -230,14 +233,14 @@ def get_spent_invites(user_id):
 def spend_invites(user_id, amount):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE users SET spent_invites = spent_invites + ? WHERE user_id = ?", (amount, user_id))
+    cursor.execute("UPDATE users SET spent_invites = spent_invites + %s WHERE user_id = %s", (amount, user_id))
     conn.commit()
     conn.close()
     
 def get_user_created_at(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT created_at FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT created_at FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
     conn.close()
     return row[0] if row else "Unknown"
@@ -258,7 +261,7 @@ def get_leaderboard():
 def get_setting(key, default=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    cursor.execute("SELECT value FROM settings WHERE key = %s", (key,))
     row = cursor.fetchone()
     conn.close()
     if row:
@@ -268,7 +271,7 @@ def get_setting(key, default=None):
 def set_setting(key, value):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (%s, %s)", (key, str(value)))
     conn.commit()
     conn.close()
 
@@ -283,21 +286,21 @@ def get_force_join_chats():
 def add_force_join(chat_id, title, link, chat_type):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO force_join (chat_id, title, link, chat_type) VALUES (?, ?, ?, ?)", (chat_id, title, link, chat_type))
+    cursor.execute("INSERT OR REPLACE INTO force_join (chat_id, title, link, chat_type) VALUES (%s, %s, %s, %s)", (chat_id, title, link, chat_type))
     conn.commit()
     conn.close()
 
 def remove_force_join(chat_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM force_join WHERE chat_id = ?", (chat_id,))
+    cursor.execute("DELETE FROM force_join WHERE chat_id = %s", (chat_id,))
     conn.commit()
     conn.close()
 
 def is_banned(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT 1 FROM bans WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT 1 FROM bans WHERE user_id = %s', (user_id,))
     banned = cursor.fetchone() is not None
     conn.close()
     return banned
@@ -310,12 +313,12 @@ def add_vps(user_id, vps_id, container_name, os_type, hostname, ssh_line, ram=DE
     if expiry_days > 0:
         cursor.execute('''
             INSERT INTO vps (user_id, container_id, container_name, os_type, hostname, ssh_command, ram, cpu, disk, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' days'))
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, datetime('now', '+' || %s || ' days'))
         ''', (user_id, vps_id, container_name, os_type, hostname, ssh_line, ram, cpu, disk, expiry_days))
     else:
         cursor.execute('''
             INSERT INTO vps (user_id, container_id, container_name, os_type, hostname, ssh_command, ram, cpu, disk)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (user_id, vps_id, container_name, os_type, hostname, ssh_line, ram, cpu, disk))
         
     conn.commit()
@@ -324,7 +327,7 @@ def add_vps(user_id, vps_id, container_name, os_type, hostname, ssh_line, ram=DE
 def get_user_vps(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM vps WHERE user_id = ? ORDER BY created_at DESC', (user_id,))
+    cursor.execute('SELECT * FROM vps WHERE user_id = %s ORDER BY created_at DESC', (user_id,))
     vps_list = cursor.fetchall()
     conn.close()
     return vps_list
@@ -346,21 +349,21 @@ def get_vps_by_identifier(user_id, identifier):
 def update_vps_status(container_id, status):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('UPDATE vps SET status = ? WHERE container_id = ?', (status, container_id))
+    cursor.execute('UPDATE vps SET status = %s WHERE container_id = %s', (status, container_id))
     conn.commit()
     conn.close()
 
 def update_vps_ssh(container_id, ssh_command):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('UPDATE vps SET ssh_command = ? WHERE container_id = ?', (ssh_command, container_id))
+    cursor.execute('UPDATE vps SET ssh_command = %s WHERE container_id = %s', (ssh_command, container_id))
     conn.commit()
     conn.close()
 
 def delete_vps(container_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM vps WHERE container_id = ?', (container_id,))
+    cursor.execute('DELETE FROM vps WHERE container_id = %s', (container_id,))
     conn.commit()
     conn.close()
 
@@ -744,7 +747,7 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
     job_id = str(uuid.uuid4())
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO jobs (job_id, vps_id, action) VALUES (?, ?, 'create')", (job_id, vps_id))
+    cursor.execute("INSERT INTO jobs (job_id, vps_id, action) VALUES (%s, %s, 'create')", (job_id, vps_id))
     conn.commit()
     conn.close()
     
@@ -780,10 +783,10 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT ssh_command FROM vps WHERE container_id = ?", (vps_id,))
+        cursor.execute("SELECT ssh_command FROM vps WHERE container_id = %s", (vps_id,))
         vps_row = cursor.fetchone()
         
-        cursor.execute("SELECT status, result FROM jobs WHERE job_id = ?", (job_id,))
+        cursor.execute("SELECT status, result FROM jobs WHERE job_id = %s", (job_id,))
         job = cursor.fetchone()
         conn.close()
         
@@ -800,7 +803,7 @@ async def handle_create_vps(update_or_query, context, os_type, user_id, username
     if ssh_line:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE vps SET ssh_command = ?, status = 'running' WHERE container_id = ?", (ssh_line, vps_id))
+        cursor.execute("UPDATE vps SET ssh_command = %s, status = 'running' WHERE container_id = %s", (ssh_line, vps_id))
         conn.commit()
         conn.close()
         
@@ -1031,7 +1034,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             job_id = str(uuid.uuid4())
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, ?, ?)", (job_id, vps_id, action, vps['node_id']))
+            cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (%s, %s, %s, %s)", (job_id, vps_id, action, vps['node_id']))
             conn.commit()
             conn.close()
             
@@ -1205,9 +1208,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         node_id = int(data.split("_")[2])
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM nodes WHERE node_id = ?", (node_id,))
+        cursor.execute("SELECT * FROM nodes WHERE node_id = %s", (node_id,))
         node = cursor.fetchone()
-        cursor.execute("SELECT COUNT(*) FROM vps WHERE node_id = ?", (node_id,))
+        cursor.execute("SELECT COUNT(*) FROM vps WHERE node_id = %s", (node_id,))
         vps_count = cursor.fetchone()[0]
         conn.close()
         
@@ -1250,11 +1253,11 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Add VPS explicitly bound to this node_id
         cursor.execute('''
             INSERT INTO vps (user_id, container_id, container_name, os_type, hostname, status, node_id, ram, cpu, disk)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (user_id, vps_id, container_name, "ubuntu", hostname, "Pending...", node_id, ram, cpu, disk))
         
         job_id = str(uuid.uuid4())
-        cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, 'create', ?)", (job_id, vps_id, node_id))
+        cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (%s, %s, 'create', %s)", (job_id, vps_id, node_id))
         conn.commit()
         conn.close()
         
@@ -1295,7 +1298,7 @@ async def set_node_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         limit = int(update.message.text)
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE nodes SET max_vps = ? WHERE node_id = ?", (limit, node_id))
+        cursor.execute("UPDATE nodes SET max_vps = %s WHERE node_id = %s", (limit, node_id))
         conn.commit()
         conn.close()
         await update.message.reply_text(f"✅ Node {node_id} maximum VPS limit updated to {limit}.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Nodes", callback_data="admin_manage_nodes")]]))
@@ -1411,13 +1414,13 @@ async def api_register(request):
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT node_id FROM nodes WHERE name = ?", (name,))
+    cursor.execute("SELECT node_id FROM nodes WHERE name = %s", (name,))
     row = cursor.fetchone()
     if row:
         node_id = row['node_id']
-        cursor.execute("UPDATE nodes SET status = 'active', last_ping = CURRENT_TIMESTAMP, ram = ?, cpu = ?, disk = ? WHERE node_id = ?", (ram, cpu, disk, node_id))
+        cursor.execute("UPDATE nodes SET status = 'active', last_ping = CURRENT_TIMESTAMP, ram = %s, cpu = %s, disk = %s WHERE node_id = %s", (ram, cpu, disk, node_id))
     else:
-        cursor.execute("INSERT INTO nodes (name, status, last_ping, ram, cpu, disk) VALUES (?, 'active', CURRENT_TIMESTAMP, ?, ?, ?)", (name, ram, cpu, disk))
+        cursor.execute("INSERT INTO nodes (name, status, last_ping, ram, cpu, disk) VALUES (%s, 'active', CURRENT_TIMESTAMP, %s, %s, %s)", (name, ram, cpu, disk))
         node_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -1447,28 +1450,28 @@ async def api_get_jobs(request):
         
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE nodes SET last_ping = CURRENT_TIMESTAMP WHERE node_id = ?", (node_id,))
+    cursor.execute("UPDATE nodes SET last_ping = CURRENT_TIMESTAMP WHERE node_id = %s", (node_id,))
     
     # Check node capacity
-    cursor.execute("SELECT COUNT(*) FROM vps WHERE node_id = ?", (node_id,))
+    cursor.execute("SELECT COUNT(*) FROM vps WHERE node_id = %s", (node_id,))
     vps_count = cursor.fetchone()[0]
     
-    cursor.execute("SELECT max_vps FROM nodes WHERE node_id = ?", (node_id,))
+    cursor.execute("SELECT max_vps FROM nodes WHERE node_id = %s", (node_id,))
     node_data = cursor.fetchone()
     max_vps = node_data[0] if node_data else 5
     
     # Fetch job logic:
     # 1. First, always try to get a job specifically assigned to this node (like start, stop, restart for its own VPSs)
-    cursor.execute("SELECT * FROM jobs WHERE status = 'pending' AND node_id = ? ORDER BY created_at ASC LIMIT 1", (node_id,))
+    cursor.execute("SELECT * FROM jobs WHERE status = 'pending' AND node_id = %s ORDER BY created_at ASC LIMIT 1", (node_id,))
     job = cursor.fetchone()
     
     # 2. If no specific job, and we have capacity, look for a new unassigned 'create' job
     if not job and vps_count < max_vps:
-        cursor.execute("SELECT * FROM jobs WHERE status = 'pending' AND action = 'create' AND (node_id IS NULL OR node_id = ?) ORDER BY created_at ASC LIMIT 1", (node_id,))
+        cursor.execute("SELECT * FROM jobs WHERE status = 'pending' AND action = 'create' AND (node_id IS NULL OR node_id = %s) ORDER BY created_at ASC LIMIT 1", (node_id,))
         job = cursor.fetchone()
     
     if job:
-        cursor.execute("UPDATE jobs SET status = 'running', node_id = ? WHERE job_id = ?", (node_id, job['job_id']))
+        cursor.execute("UPDATE jobs SET status = 'running', node_id = %s WHERE job_id = %s", (node_id, job['job_id']))
         conn.commit()
         conn.close()
         return web.json_response({'job': dict(job)})
@@ -1485,7 +1488,7 @@ async def api_post_result(request):
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE jobs SET status = ?, result = ? WHERE job_id = ?", (status, result, job_id))
+    cursor.execute("UPDATE jobs SET status = %s, result = %s WHERE job_id = %s", (status, result, job_id))
     conn.commit()
     conn.close()
     
@@ -1520,16 +1523,16 @@ async def delete_test_vps_job(context: ContextTypes.DEFAULT_TYPE):
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT node_id FROM vps WHERE container_id = ?", (vps_id,))
+    cursor.execute("SELECT node_id FROM vps WHERE container_id = %s", (vps_id,))
     row = cursor.fetchone()
     
     if row:
         node_id = row['node_id']
         job_uuid = str(uuid.uuid4())
-        cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (?, ?, 'delete', ?)", (job_uuid, vps_id, node_id))
+        cursor.execute("INSERT INTO jobs (job_id, vps_id, action, node_id) VALUES (%s, %s, 'delete', %s)", (job_uuid, vps_id, node_id))
         
         # Delete from DB immediately so it doesn't show in UI
-        cursor.execute("DELETE FROM vps WHERE container_id = ?", (vps_id,))
+        cursor.execute("DELETE FROM vps WHERE container_id = %s", (vps_id,))
         conn.commit()
         
         try:
@@ -1559,10 +1562,10 @@ async def monitor_completed_jobs(application: Application):
                 status = job['status']
                 result = job['result']
                 
-                cursor.execute("SELECT user_id FROM vps WHERE container_id = ?", (vps_id,))
+                cursor.execute("SELECT user_id FROM vps WHERE container_id = %s", (vps_id,))
                 vps_row = cursor.fetchone()
                 if not vps_row:
-                    cursor.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+                    cursor.execute("DELETE FROM jobs WHERE job_id = %s", (job_id,))
                     continue
                 user_id = vps_row['user_id']
                 
@@ -1593,9 +1596,9 @@ async def monitor_completed_jobs(application: Application):
                     if status == "completed":
                         update_vps_ssh(vps_id, result)
                         update_vps_status(vps_id, "running")
-                        cursor.execute("UPDATE vps SET node_id = ? WHERE container_id = ?", (job['node_id'], vps_id))
+                        cursor.execute("UPDATE vps SET node_id = %s WHERE container_id = %s", (job['node_id'], vps_id))
                 
-                cursor.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+                cursor.execute("DELETE FROM jobs WHERE job_id = %s", (job_id,))
                 
             conn.commit()
             conn.close()
