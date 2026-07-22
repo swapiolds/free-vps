@@ -141,6 +141,9 @@ async def register_node(master_url):
     async with ClientSession(headers={'ngrok-skip-browser-warning': '1'}) as session:
         try:
             async with session.post(f"{master_url}/register", json=payload) as resp:
+                if resp.status != 200:
+                    print(f"Master returned {resp.status}: {await resp.text()}")
+                    return None
                 data = await resp.json()
                 print(f"Registered as Node ID: {data['node_id']}")
                 return data['node_id']
@@ -211,6 +214,13 @@ async def worker_loop(master_url, node_id):
                 
             await asyncio.sleep(5)
 
+async def main_worker(master_url):
+    node_id = await register_node(master_url)
+    if node_id:
+        await worker_loop(master_url, node_id)
+    else:
+        print("Exiting due to registration failure.")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--master", required=True, help="Master Bot URL (e.g. https://xyz.ngrok-free.app)")
@@ -219,9 +229,7 @@ if __name__ == "__main__":
     os.makedirs(VPS_DATA_DIR, exist_ok=True)
     download_rootfs()
     
-    loop = asyncio.get_event_loop()
-    node_id = loop.run_until_complete(register_node(args.master))
-    if node_id:
-        loop.run_until_complete(worker_loop(args.master, node_id))
-    else:
-        print("Exiting due to registration failure.")
+    try:
+        asyncio.run(main_worker(args.master))
+    except KeyboardInterrupt:
+        print("Worker stopped.")
