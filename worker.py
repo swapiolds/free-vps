@@ -42,8 +42,10 @@ async def async_extract_rootfs(vps_id):
         
         # Basic DNS and Fake Proc
         resolv_conf = os.path.join(target_dir, "etc", "resolv.conf")
-        if os.path.exists(resolv_conf):
+        try:
             os.remove(resolv_conf)
+        except OSError:
+            pass
         with open(resolv_conf, "w") as f:
             f.write("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
             
