@@ -1598,7 +1598,6 @@ def main():
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("panel", cmd_start))
     application.add_handler(CommandHandler("nodes", cmd_nodes))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_keyboard_buttons))
     
     deploy_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("🚀"), cmd_deploy_start)],
@@ -1629,6 +1628,7 @@ def main():
         allow_reentry=True
     )
     application.add_handler(admin_conv)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_keyboard_buttons))
     application.add_handler(CallbackQueryHandler(button_handler))
     
     job_queue = application.job_queue
