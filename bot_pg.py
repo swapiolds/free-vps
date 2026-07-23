@@ -772,16 +772,11 @@ async def cmd_deploy_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Notify admin
     try:
         msg_admin = (
-            f"🔔 <b>New VPS Deployed Locally!</b>
-"
-            f"━━━━━━━━━━━━━━━━━━
-"
-            f"👤 <b>User:</b> {username} (<code>{user_id}</code>)
-"
-            f"🖥 <b>Container:</b> <code>{container_name}</code>
-"
-            f"⚙️ <b>Specs:</b> {ram} RAM, {cpu} CPU, {disk} Disk
-"
+            f"🔔 <b>New VPS Deployed Locally!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>User:</b> {username} (<code>{user_id}</code>)\n"
+            f"🖥 <b>Container:</b> <code>{container_name}</code>\n"
+            f"⚙️ <b>Specs:</b> {ram} RAM, {cpu} CPU, {disk} Disk\n"
             f"━━━━━━━━━━━━━━━━━━"
         )
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg_admin, parse_mode=ParseMode.HTML)
@@ -821,16 +816,11 @@ async def cmd_deploy_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update_vps_status(vps_id, "running")
         
         ssh_msg = (
-            "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ! 🎉</b>
-"
-            "━━━━━━━━━━━━━━━━━━━━
-"
-            "🔑 <b>ʏᴏᴜʀ ꜱꜱʜ ᴄᴏᴍᴍᴀɴᴅ:</b>
-"
-            f"<code>{ssh_line}</code>
-"
-            "━━━━━━━━━━━━━━━━━━━━
-"
+            "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ! 🎉</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🔑 <b>ʏᴏᴜʀ ꜱꜱʜ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
+            f"<code>{ssh_line}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
             "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
         )
         try:
