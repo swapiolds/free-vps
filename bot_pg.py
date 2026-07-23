@@ -725,6 +725,9 @@ async def cmd_deploy_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_deploy_ram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text.lower() == "cancel":
         return await cancel_deploy(update, context)
+    if not update.message.text.strip().isdigit():
+        await update.message.reply_text("❌ <b>Please enter a valid number (e.g., 2, 4, 8)</b>", parse_mode=ParseMode.HTML)
+        return DEPLOY_RAM
     context.user_data['deploy_ram'] = update.message.text.strip() + "g"
     await update.message.reply_text("⚙️ <b>How many CPU Cores? (e.g. 1, 2, 4)</b>", parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup([["1", "2", "4"], ["Cancel"]], resize_keyboard=True))
     return DEPLOY_CPU
@@ -732,6 +735,9 @@ async def cmd_deploy_ram(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_deploy_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text.lower() == "cancel":
         return await cancel_deploy(update, context)
+    if not update.message.text.strip().isdigit():
+        await update.message.reply_text("❌ <b>Please enter a valid number (e.g., 1, 2, 4)</b>", parse_mode=ParseMode.HTML)
+        return DEPLOY_CPU
     context.user_data['deploy_cpu'] = update.message.text.strip()
     await update.message.reply_text("💾 <b>How much Storage (GB)? (e.g. 10, 20)</b>", parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup([["10", "20", "40"], ["Cancel"]], resize_keyboard=True))
     return DEPLOY_DISK
@@ -743,6 +749,9 @@ async def cancel_deploy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_deploy_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text.lower() == "cancel":
         return await cancel_deploy(update, context)
+    if not update.message.text.strip().isdigit():
+        await update.message.reply_text("❌ <b>Please enter a valid number (e.g., 10, 20)</b>", parse_mode=ParseMode.HTML)
+        return DEPLOY_DISK
         
     context.user_data['deploy_disk'] = update.message.text.strip() + "G"
     user_id = update.effective_user.id
@@ -763,23 +772,48 @@ async def cmd_deploy_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Notify admin
     try:
         msg_admin = (
-            f"🔔 <b>New VPS Deployed Locally!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"👤 <b>User:</b> {username} (<code>{user_id}</code>)\n"
-            f"🖥 <b>Container:</b> <code>{container_name}</code>\n"
-            f"⚙️ <b>Specs:</b> {ram} RAM, {cpu} CPU, {disk} Disk\n"
+            f"🔔 <b>New VPS Deployed Locally!</b>
+"
+            f"━━━━━━━━━━━━━━━━━━
+"
+            f"👤 <b>User:</b> {username} (<code>{user_id}</code>)
+"
+            f"🖥 <b>Container:</b> <code>{container_name}</code>
+"
+            f"⚙️ <b>Specs:</b> {ram} RAM, {cpu} CPU, {disk} Disk
+"
             f"━━━━━━━━━━━━━━━━━━"
         )
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg_admin, parse_mode=ParseMode.HTML)
     except: pass
+
+    # Make sure rootfs is downloaded
+    if not os.path.exists(UBUNTU_TAR_PATH):
+        await msg.edit_text("⏳ <b>Downloading Ubuntu RootFS (this takes a moment)...</b>", parse_mode=ParseMode.HTML)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, download_rootfs)
     
-    # Run locally
-    await msg.edit_text("⏳ <b>Extracting RootFS & Configuring Network...</b>", parse_mode=ParseMode.HTML)
-    await async_extract_rootfs(vps_id)
+    # Fake animation to replicate old behavior while running tasks
+    animation_steps = [
+        "⏳ <b>ᴀʟʟᴏᴄᴀᴛɪɴɢ ʀᴇꜱᴏᴜʀᴄᴇꜱ...</b>",
+        "⏳ <b>ᴇxᴛʀᴀᴄᴛɪɴɢ ʀᴏᴏᴛꜰꜱ...</b>",
+        "⏳ <b>ᴄᴏɴꜰɪɢᴜʀɪɴɢ ɴᴇᴛᴡᴏʀᴋ...</b>",
+        "⏳ <b>ꜱᴛᴀʀᴛɪɴɢ ꜱꜱʜ ꜱᴇʀᴠᴇʀ...</b>"
+    ]
     
-    await msg.edit_text("⏳ <b>Starting SSH Server...</b>", parse_mode=ParseMode.HTML)
+    # Start extraction asynchronously
+    task_extract = asyncio.create_task(async_extract_rootfs(vps_id))
+    
+    for step in animation_steps:
+        try:
+            await msg.edit_text(step, parse_mode=ParseMode.HTML)
+        except: pass
+        await asyncio.sleep(2.5)
+        
+    await task_extract
+    
     proc = await async_proot_start(vps_id)
-    
     ssh_line = await capture_ssh_session_line(proc)
     
     if ssh_line:
@@ -787,11 +821,16 @@ async def cmd_deploy_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update_vps_status(vps_id, "running")
         
         ssh_msg = (
-            "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ! 🎉</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "🔑 <b>ʏᴏᴜʀ ꜱꜱʜ ᴄᴏᴍᴍᴀɴᴅ:</b>\n"
-            f"<code>{ssh_line}</code>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
+            "✅ <b>ɴᴇᴡ ꜱꜱʜ ꜱᴇꜱꜱɪᴏɴ ɢᴇɴᴇʀᴀᴛᴇᴅ! 🎉</b>
+"
+            "━━━━━━━━━━━━━━━━━━━━
+"
+            "🔑 <b>ʏᴏᴜʀ ꜱꜱʜ ᴄᴏᴍᴍᴀɴᴅ:</b>
+"
+            f"<code>{ssh_line}</code>
+"
+            "━━━━━━━━━━━━━━━━━━━━
+"
             "<i>(ᴄᴏᴘʏ ᴛʜᴇ ᴀʙᴏᴠᴇ ᴄᴏᴍᴍᴀɴᴅ ᴀɴᴅ ᴘᴀꜱᴛᴇ ɪᴛ ɪɴ ᴛᴇʀᴍᴜx ᴏʀ ᴀɴʏ ꜱꜱʜ ᴄʟɪᴇɴᴛ ᴛᴏ ᴄᴏɴɴᴇᴄᴛ)</i>"
         )
         try:
